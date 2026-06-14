@@ -41,10 +41,22 @@ html, body { min-height: 100%; overflow-x: hidden; }
 
 /* ── Body ── */
 body {
-  background-image: url('../assets/bg.jpg');
+  font-family: 'Inter', sans-serif;
+
+  background:
+    linear-gradient(
+      rgba(5, 15, 35, 0.62),
+      rgba(5, 15, 35, 0.70)
+    ),
+    url('../assets/bg.jpg');
+
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
+  background-attachment: fixed;
+
+  color: var(--text-hi);
+  min-height: 100vh;
 }
 
 /* Glow emas kiri atas */
@@ -98,6 +110,10 @@ body::after {
   font-family: 'Cormorant Garamond', serif;
   font-weight: 600;
   letter-spacing: 0.5px;
+}
+
+body::selection {
+  background: rgba(255,255,255,0.15);
 }
 
 /* ══════════════════════════════════
@@ -275,15 +291,32 @@ body::after {
    GLASS CARD
 ══════════════════════════════════ */
 .card {
-  background: linear-gradient(135deg, rgba(17,34,80,0.88), rgba(60,80,125,0.72));
+  background: linear-gradient(
+    135deg,
+    rgba(12,28,68,0.92),
+    rgba(35,58,110,0.84)
+  );
+
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(224,197,143,0.12);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.28), inset 0 1px 0 rgba(245,240,233,0.03);
+
+  border: 1px solid rgba(224,197,143,0.18);
+
+  box-shadow:
+    0 12px 40px rgba(0,0,0,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.04);
+
   border-radius: var(--radius);
   padding: clamp(14px,1.4vw,20px);
-  position: relative; overflow: hidden; width: 100%;
-  transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+
+  transition:
+    transform 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
 }
 .card::before {
   content: '';
@@ -367,8 +400,8 @@ body::after {
 }
 .section-title {
   font-family: 'Rajdhani', sans-serif;
-  font-size: clamp(20px,2.2vw,30px); font-weight: 700; color: #F5F0E9;
-  text-shadow: 0 0 10px rgba(224,197,143,0.15); letter-spacing: 0.03em;
+  font-size: clamp(20px,2.2vw,30px); font-weight: 700; color: #F5D48A;
+  text-shadow: 0 2 10px rgba(0,0,0,0.6); letter-spacing: 0.03em;
 }
 .section-sub { font-size: 12px; color: var(--text-lo); margin-top: 2px; }
 
