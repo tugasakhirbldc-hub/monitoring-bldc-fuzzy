@@ -45,13 +45,15 @@ body {
 
   background:
     linear-gradient(
-      rgba(8,20,47,0.15),
-      rgba(8,20,47,0.20)
+      rgba(8,20,47,0.35),
+      rgba(8,20,47,0.45)
     ),
-    url('../assets/bg.jpg') center center / cover no-repeat fixed;
+    url('../assets/bg.jpg');
 
-  background-color: var(--bg-deep);
-  background-blend-mode: multiply;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
 
   color: var(--text-hi);
   min-height: 100vh;
