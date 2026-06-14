@@ -42,29 +42,65 @@ html, body { min-height: 100%; overflow-x: hidden; }
 /* ── Body ── */
 body {
   font-family: 'Inter', sans-serif;
+
   background:
-    linear-gradient(rgba(8,20,47,0.68), rgba(8,20,47,0.78)),
+    linear-gradient(
+      rgba(8,20,47,0.15),
+      rgba(8,20,47,0.20)
+    ),
     url('../assets/bg.jpg') center center / cover no-repeat fixed;
-  background-blend-mode: multiply;
+
   background-color: var(--bg-deep);
+  background-blend-mode: multiply;
+
   color: var(--text-hi);
   min-height: 100vh;
 }
 
-/* Fallback background jika gambar tidak ada */
+/* Glow emas kiri atas */
 body::before {
   content: '';
-  position: fixed; top: -150px; left: -100px;
-  width: 600px; height: 600px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(224,197,143,0.10) 0%, transparent 70%);
-  pointer-events: none; z-index: -1; filter: blur(40px);
+  position: fixed;
+  top: -150px;
+  left: -100px;
+
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(224,197,143,0.18) 0%,
+      transparent 70%
+    );
+
+  filter: blur(40px);
+  pointer-events: none;
+  z-index: -1;
 }
+
+/* Glow biru kanan bawah */
 body::after {
   content: '';
-  position: fixed; bottom: -100px; right: -80px;
-  width: 500px; height: 500px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(78,168,255,0.08) 0%, transparent 70%);
-  pointer-events: none; z-index: -1; filter: blur(30px);
+  position: fixed;
+  bottom: -100px;
+  right: -80px;
+
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(78,168,255,0.12) 0%,
+      transparent 70%
+    );
+
+  filter: blur(30px);
+  pointer-events: none;
+  z-index: -1;
 }
 
 /* ── Brand Typography ── */
