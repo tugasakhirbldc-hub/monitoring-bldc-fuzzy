@@ -41,22 +41,10 @@ html, body { min-height: 100%; overflow-x: hidden; }
 
 /* ── Body ── */
 body {
-  font-family: 'Inter', sans-serif;
-
-  background:
-    linear-gradient(
-      rgba(8,20,47,0.35),
-      rgba(8,20,47,0.45)
-    ),
-    url('../assets/bg.jpg');
-
+  background-image: url('../assets/bg.jpg');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  background-attachment: fixed;
-
-  color: var(--text-hi);
-  min-height: 100vh;
 }
 
 /* Glow emas kiri atas */
