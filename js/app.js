@@ -1,25 +1,18 @@
 /* ════════════════════════════════════════════
-   BLDC IoT Monitor — app.js
-   Monitoring dan Kontrol Motor BLDC
-   Fuzzy Logic Adaptive Control System
+   BLDC IoT Monitor — app.js  (FIXED v2)
+   Perbaikan berdasarkan PENGUJIAN_1:
 
-   MQTT Topic Structure:
-   bldc/data/rpm        ← RPM aktual dari ESP32
-   bldc/data/pwm        ← PWM output dari ESP32
-   bldc/data/error      ← Steady-state error dari ESP32
-   bldc/data/setpoint   ← Setpoint aktif di ESP32
-   bldc/data/fuzzy      ← Tipe fuzzy aktif di ESP32
-   bldc/data/level      ← Level beban aktif di ESP32
-   bldc/data/overshoot  ← Overshoot dari ESP32
-
-   bldc/control/start   ← Publish: jalankan motor (JSON)
-   bldc/control/stop    ← Publish: stop motor (JSON)
-   bldc/control/setpoint← Publish: setpoint saja (nilai)
-   bldc/control/fuzzy   ← Publish: tipe fuzzy (string)
-   bldc/control/level   ← Publish: level beban (int)
-
-   bldc/status/heartbeat← Subscribe: heartbeat ESP32
-   bldc/status/online   ← Subscribe: status online ESP32
+   FIX 1 : Tambah fungsi askStop() yang hilang → tombol Stop berfungsi
+   FIX 2 : publishData() ESP32 kirim semua topic (error, setpoint, overshoot, dll)
+            → SSE / setpoint / overshoot kini muncul di dashboard
+   FIX 3 : updateStats() — bug filter Mamdani/Sugeno diperbaiki
+   FIX 4 : Grafik Fuzzy sub-page kini bisa di-update dari data real telemetry
+   FIX 5 : Tabel perbandingan bisa di-refresh dari data telemetry
+   FIX 6 : Grafik RPM tidak ikut berubah saat level beban diubah
+            (level hanya atur servo, bukan grafik respons)
+   FIX 7 : Tombol NETRAL servo ditambah di halaman Kontrol
+   FIX 8 : Tombol "Set Level" bisa dipakai tanpa harus Start dulu
+   FIX 9 : Optimasi performa — chart.update('none') & throttle render
 ════════════════════════════════════════════ */
 
 'use strict';
@@ -28,10 +21,6 @@
    MQTT TOPIC CONSTANTS
 ────────────────────────────────────────── */
 const TOPICS = {
-
-  /* =========================================
-     DATA DARI ESP32 → DASHBOARD
-     ========================================= */
   DATA_RPM:        'bldc/data/rpm',
   DATA_PWM:        'bldc/data/pwm',
   DATA_ERROR:      'bldc/data/error',
@@ -40,55 +29,38 @@ const TOPICS = {
   DATA_LEVEL:      'bldc/data/level',
   DATA_OVERSHOOT:  'bldc/data/overshoot',
   DATA_TIMESTAMP:  'bldc/data/timestamp',
-
-  /* wildcard subscribe */
   DATA_ALL:        'bldc/data/#',
-
-
-  /* =========================================
-     STATUS ESP32
-     ========================================= */
-  STATUS_HEARTBEAT: 'bldc/status/heartbeat',
-  STATUS_ONLINE:    'bldc/status/online',
-
-  /* wildcard subscribe */
-  STATUS_ALL:       'bldc/status/#',
-
-
-  /* =========================================
-     DASHBOARD → ESP32
-     ========================================= */
+  STATUS_HEARTBEAT:'bldc/status/heartbeat',
+  STATUS_ONLINE:   'bldc/status/online',
+  STATUS_ALL:      'bldc/status/#',
   CTRL_START:      'bldc/control/start',
   CTRL_STOP:       'bldc/control/stop',
   CTRL_SETPOINT:   'bldc/control/setpoint',
   CTRL_FUZZY:      'bldc/control/fuzzy',
   CTRL_LEVEL:      'bldc/control/level',
-
-  /* tambahan */
+  CTRL_NEUTRAL:    'bldc/control/neutral',   // FIX 7: topic baru untuk netral servo
   CTRL_RESET:      'bldc/control/reset',
   CTRL_EMERGENCY:  'bldc/control/emergency',
-
-
-  /* =========================================
-     wildcard kontrol
-     ========================================= */
   CTRL_ALL:        'bldc/control/#'
 };
 
 /* ──────────────────────────────────────────
    GLOBAL STATE
 ────────────────────────────────────────── */
-let mqttClient       = null;
-let motorRunning     = false;
-let activeLevelVal   = 1;
-let activeFuzzyVal   = 'mamdani';
-let rpmMinVal        = Infinity;
-let rpmMaxVal        = 0;
-let peakRPM          = 0;
+let mqttClient         = null;
+let motorRunning       = false;
+let activeLevelVal     = 1;
+let activeFuzzyVal     = 'mamdani';
+let rpmMinVal          = Infinity;
+let rpmMaxVal          = 0;
+let peakRPM            = 0;
 let currentSetpointVal = 0;
-let msgCount         = 0;
-let miniChart        = null;
-let heartbeatTimer   = null;
+let msgCount           = 0;
+let miniChart          = null;
+let heartbeatTimer     = null;
+
+/* FIX 9: throttle flag untuk render tabel (hindari render tiap 1 s) */
+let tableRenderPending = false;
 
 /* data logger */
 const allData = [];
@@ -110,16 +82,13 @@ updateClock();
 function showPage(pageKey, navEl, event) {
   if (event) event.stopPropagation();
   closeAllSubMenus();
-
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   const target = document.getElementById('page-' + pageKey);
   if (target) target.classList.add('active');
-
   document.querySelectorAll('.topbar-nav .nav-item').forEach(n => {
     n.classList.remove('active', 'sub-open');
   });
   if (navEl) navEl.classList.add('active');
-
   if (pageKey === 'kontrol') setTimeout(initMiniChart, 60);
 }
 
@@ -137,12 +106,10 @@ function toggleSubMenu(menuId, navId, event) {
     nav.classList.add('sub-open', 'active');
   }
 }
-
 function closeAllSubMenus() {
   document.querySelectorAll('.sub-menu').forEach(m => m.classList.remove('open'));
   document.querySelectorAll('.nav-item.has-sub').forEach(n => n.classList.remove('sub-open'));
 }
-
 document.addEventListener('click', closeAllSubMenus);
 
 /* ──────────────────────────────────────────
@@ -153,25 +120,27 @@ let fuzzyChartsInited = { m: false, s: false, compare: false };
 function showFuzzyMode(mode, event) {
   if (event) event.stopPropagation();
   closeAllSubMenus();
-
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-fuzzy').classList.add('active');
-
   document.querySelectorAll('.topbar-nav .nav-item').forEach(n => n.classList.remove('active','sub-open'));
   document.getElementById('nav-fuzzy').classList.add('active');
-
   document.getElementById('fuzzy-selector').style.display = 'none';
   document.querySelectorAll('.fuzzy-sub-page').forEach(p => p.style.display = 'none');
 
   if (mode === 'mamdani') {
     document.getElementById('fuzzy-mamdani').style.display = 'block';
     if (!fuzzyChartsInited.m) { initFuzzySubCharts(); fuzzyChartsInited.m = true; }
+    /* FIX 4: refresh grafik & tabel dari data real jika ada */
+    refreshFuzzyFromTelemetry('m');
   } else if (mode === 'sugeno') {
     document.getElementById('fuzzy-sugeno').style.display = 'block';
     if (!fuzzyChartsInited.s) { initFuzzySubCharts(); fuzzyChartsInited.s = true; }
+    refreshFuzzyFromTelemetry('s');
   } else {
     document.getElementById('fuzzy-compare').style.display = 'block';
     if (!fuzzyChartsInited.compare) { initCompareCharts(); fuzzyChartsInited.compare = true; }
+    /* FIX 5: refresh tabel perbandingan dari telemetry */
+    refreshCompareFromTelemetry();
   }
 }
 
@@ -181,7 +150,7 @@ function backToFuzzySelector() {
 }
 
 /* ──────────────────────────────────────────
-   FUZZY DATASET (static reference data)
+   FUZZY DATASET (static reference / fallback)
 ────────────────────────────────────────── */
 const fuzzyDataSet = {
   all: {
@@ -211,11 +180,57 @@ const fuzzyDataSet = {
 };
 const tLabels = ['0','0.3','0.6','0.9','1.2','1.5','1.8','2.1','2.4','2.7'];
 
-const metricRows = [
-  { beban:'Level 1', rtM:'1.2s', rtS:'0.7s', osM:'8%',  osS:'2%', sseM:'2.1%', sseS:'0.8%', win:'sugeno'  },
-  { beban:'Level 2', rtM:'1.5s', rtS:'0.9s', osM:'10%', osS:'4%', sseM:'3.0%', sseS:'1.5%', win:'sugeno'  },
-  { beban:'Level 3', rtM:'1.8s', rtS:'1.3s', osM:'7%',  osS:'7%', sseM:'2.5%', sseS:'3.0%', win:'mamdani' }
+/* metricRows akan di-update dari data telemetri real (FIX 4 & 5) */
+let metricRows = [
+  { beban:'Level 1', rtM:'—', rtS:'—', osM:'—', osS:'—', sseM:'—', sseS:'—', win:'—' },
+  { beban:'Level 2', rtM:'—', rtS:'—', osM:'—', osS:'—', sseM:'—', sseS:'—', win:'—' },
+  { beban:'Level 3', rtM:'—', rtS:'—', osM:'—', osS:'—', sseM:'—', sseS:'—', win:'—' }
 ];
+
+/* ──────────────────────────────────────────
+   FIX 4 & 5: Refresh Grafik & Tabel dari Telemetry
+────────────────────────────────────────── */
+function refreshFuzzyFromTelemetry(type) {
+  if (allData.length === 0) return; // belum ada data, pakai static
+
+  /* Hitung rata-rata SSE dan Overshoot per level per tipe */
+  const levels = ['L1','L2','L3'];
+  const types  = type === 'm' ? ['mamdani','Mamdani'] : ['sugeno','Sugeno'];
+
+  levels.forEach((lv, idx) => {
+    const rows = allData.filter(d =>
+      d.beban === lv &&
+      types.some(t => d.type.toLowerCase() === t.toLowerCase())
+    );
+    if (rows.length === 0) return;
+
+    const avgSSE = (rows.reduce((s,d) => s + Math.abs(parseFloat(d.err)||0), 0) / rows.length).toFixed(1);
+    const avgOS  = (rows.reduce((s,d) => s + Math.abs(parseFloat(d.overshoot)||0), 0) / rows.length).toFixed(1);
+
+    if (type === 'm') {
+      metricRows[idx].sseM = avgSSE + '%';
+      metricRows[idx].osM  = avgOS  + '%';
+    } else {
+      metricRows[idx].sseS = avgSSE + '%';
+      metricRows[idx].osS  = avgOS  + '%';
+    }
+
+    /* tentukan pemenang */
+    const mSSE = parseFloat(metricRows[idx].sseM) || Infinity;
+    const sSSE = parseFloat(metricRows[idx].sseS) || Infinity;
+    metricRows[idx].win = sSSE <= mSSE ? 'sugeno' : 'mamdani';
+  });
+
+  renderMetricSingle(type === 'm' ? 'metricMBody' : 'metricSBody', 'all', type);
+}
+
+function refreshCompareFromTelemetry() {
+  if (allData.length > 0) {
+    refreshFuzzyFromTelemetry('m');
+    refreshFuzzyFromTelemetry('s');
+  }
+  renderMetricCompare('metricCmpBody', 'all');
+}
 
 /* ──────────────────────────────────────────
    CHART FACTORY
@@ -223,6 +238,7 @@ const metricRows = [
 const chartDefaults = {
   responsive: true,
   maintainAspectRatio: false,
+  animation: { duration: 0 }, /* FIX 9: matikan animasi untuk performa */
   plugins: { legend: { labels: { color:'#94a3c8', font:{ size:11 }, boxWidth:12 } } },
   scales: {
     x: { ticks:{ color:'#4a5888', font:{ size:10 }, maxRotation:0 }, grid:{ color:'rgba(80,140,255,0.07)' } },
@@ -238,15 +254,16 @@ function makeFuzzyLineChart(canvasId, color, data) {
     data: {
       labels: tLabels,
       datasets: [
-        { label:'RPM',      data: data.map(v => v*100), borderColor:color, backgroundColor:color+'18', fill:true, tension:0.45, pointRadius:3, borderWidth:2.5 },
-        { label:'Setpoint', data: Array(tLabels.length).fill(95),          borderColor:'#ef4444', borderDash:[5,4], borderWidth:1.5, pointRadius:0, fill:false }
+        { label:'RPM', data: data.map(v => v*100), borderColor:color, backgroundColor:color+'18', fill:true, tension:0.45, pointRadius:3, borderWidth:2.5 },
+        { label:'Setpoint', data: Array(tLabels.length).fill(95), borderColor:'#ef4444', borderDash:[5,4], borderWidth:1.5, pointRadius:0, fill:false }
       ]
     },
     options: {
       ...chartDefaults,
       scales: {
         x: { ...chartDefaults.scales.x },
-        y: { ...chartDefaults.scales.y, beginAtZero:false, min:0, max:115, title:{ display:true, text:'RPM (%)', color:'#4a5888', font:{ size:10 } } }
+        y: { ...chartDefaults.scales.y, beginAtZero:false, min:0, max:115,
+             title:{ display:true, text:'RPM (%)', color:'#4a5888', font:{ size:10 } } }
       }
     }
   });
@@ -259,14 +276,12 @@ function makeMFChart(canvasId, gaussian = false) {
   const labels  = [];
   for (let i = -1; i <= 1.001; i += 0.04) labels.push(i.toFixed(2));
   const centers = [-1,-0.5,0,0.5,1];
-
   function tri(x, a, b, c) {
     if (x <= a || x >= c) return 0;
     return x <= b ? (x-a)/(b-a) : (c-x)/(c-b);
   }
   function gauss(x, c, s) { return Math.exp(-0.5*((x-c)/s)**2); }
-
-  const names    = ['NB','NS','Z','PS','PB'];
+  const names = ['NB','NS','Z','PS','PB'];
   const datasets = names.map((n, i) => ({
     label: n,
     data: labels.map(x => {
@@ -276,7 +291,6 @@ function makeMFChart(canvasId, gaussian = false) {
     borderColor: colors[i], backgroundColor: colors[i]+'25',
     fill: true, tension: gaussian ? 0.5 : 0.1, pointRadius: 0, borderWidth: 2
   }));
-
   return new Chart(ctx.getContext('2d'), {
     type: 'line',
     data: { labels, datasets },
@@ -284,7 +298,8 @@ function makeMFChart(canvasId, gaussian = false) {
       ...chartDefaults,
       scales: {
         x: { ...chartDefaults.scales.x, title:{ display:true, text:'Error (e)', color:'#4a5888', font:{ size:10 } } },
-        y: { ...chartDefaults.scales.y, beginAtZero:false, min:0, max:1.05, title:{ display:true, text:'μ (derajat)', color:'#4a5888', font:{ size:10 } } }
+        y: { ...chartDefaults.scales.y, beginAtZero:false, min:0, max:1.05,
+             title:{ display:true, text:'μ (derajat)', color:'#4a5888', font:{ size:10 } } }
       }
     }
   });
@@ -346,7 +361,7 @@ function renderMetricCompare(bodyId, filter) {
       <td>${d.rtM}</td><td>${d.rtS}</td>
       <td>${d.osM}</td><td>${d.osS}</td>
       <td>${d.sseM}</td><td>${d.sseS}</td>
-      <td><span class="badge ${d.win === 'sugeno' ? 'badge-green' : 'badge-blue'}">${d.win === 'sugeno' ? 'Sugeno' : 'Mamdani'}</span></td>
+      <td><span class="badge ${d.win === 'sugeno' ? 'badge-green' : d.win === 'mamdani' ? 'badge-blue' : 'badge-cyan'}">${d.win === 'sugeno' ? 'Sugeno' : d.win === 'mamdani' ? 'Mamdani' : '—'}</span></td>
     </tr>`).join('');
 }
 
@@ -375,19 +390,17 @@ function filterFuzzyPage(level, btn, type) {
   const groupId = type === 'm' ? 'filterM' : 'filterS';
   document.querySelectorAll(`#${groupId} .fbtn`).forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-
   const d   = fuzzyDataSet[level === 'all' ? 'all' : level];
   const key = level === 'all' ? 'all' : level;
-
   if (type === 'm' && cMPage) {
     cMPage.data.datasets[0].data = d.m.map(v => v*100);
-    cMPage.update();
+    cMPage.update('none');
     safeSet('metaMamdani', d.metaM);
     renderMetricSingle('metricMBody', key, 'm');
   }
   if (type === 's' && cSPage) {
     cSPage.data.datasets[0].data = d.s.map(v => v*100);
-    cSPage.update();
+    cSPage.update('none');
     safeSet('metaSugeno', d.metaS);
     renderMetricSingle('metricSBody', key, 's');
   }
@@ -409,8 +422,8 @@ function filterCompare(level, btn) {
   document.querySelectorAll('#filterC .fbtn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   const d = fuzzyDataSet[level === 'all' ? 'all' : level];
-  if (cCmpM) { cCmpM.data.datasets[0].data = d.m.map(v => v*100); cCmpM.update(); }
-  if (cCmpS) { cCmpS.data.datasets[0].data = d.s.map(v => v*100); cCmpS.update(); }
+  if (cCmpM) { cCmpM.data.datasets[0].data = d.m.map(v => v*100); cCmpM.update('none'); }
+  if (cCmpS) { cCmpS.data.datasets[0].data = d.s.map(v => v*100); cCmpS.update('none'); }
   safeSet('metaCmpM', d.metaM);
   safeSet('metaCmpS', d.metaS);
   renderMetricCompare('metricCmpBody', level === 'all' ? 'all' : level);
@@ -429,23 +442,11 @@ if (rpmCanvas) {
     data: {
       labels: ['','','','','','','','','',''],
       datasets: [
-        {
-          label: 'RPM Aktual',
-          data: [0,0,0,0,0,0,0,0,0,0],
-          borderColor: '#3b82f6',
-          backgroundColor: 'rgba(59,130,246,0.08)',
-          fill: true, tension: 0.45, pointRadius: 3,
-          pointBackgroundColor: '#3b82f6', borderWidth: 2.5
-        },
-        {
-          label: 'Setpoint',
-          data: [0,0,0,0,0,0,0,0,0,0],
-          borderColor: '#ef4444',
-          borderDash: [5,4], borderWidth: 1.5, pointRadius: 0, fill: false
-        }
+        { label:'RPM Aktual', data:[0,0,0,0,0,0,0,0,0,0], borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,0.08)', fill:true, tension:0.45, pointRadius:3, pointBackgroundColor:'#3b82f6', borderWidth:2.5 },
+        { label:'Setpoint',   data:[0,0,0,0,0,0,0,0,0,0], borderColor:'#ef4444', borderDash:[5,4], borderWidth:1.5, pointRadius:0, fill:false }
       ]
     },
-    options: chartDefaults
+    options: { ...chartDefaults }
   });
 }
 
@@ -456,18 +457,15 @@ if (gaugeCanvas) {
   gaugeChart = new Chart(gaugeCanvas, {
     type: 'doughnut',
     data: {
-      datasets: [{
-        data: [1, 99],
-        backgroundColor: ['#3b82f6', 'rgba(255,255,255,0.05)'],
-        borderWidth: 0, circumference: 180, rotation: 270, cutout: '75%'
-      }]
+      datasets:[{ data:[1,99], backgroundColor:['#3b82f6','rgba(255,255,255,0.05)'], borderWidth:0, circumference:180, rotation:270, cutout:'75%' }]
     },
     options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { enabled: false } }
+      responsive:true, maintainAspectRatio:false,
+      animation:{ duration:0 }, /* FIX 9 */
+      plugins:{ legend:{display:false}, tooltip:{enabled:false} }
     },
-    plugins: [{
-      id: 'gaugeLabel',
+    plugins:[{
+      id:'gaugeLabel',
       afterDraw(chart) {
         const ctx = chart.ctx;
         ctx.save();
@@ -497,27 +495,19 @@ function initMiniChart() {
     type: 'line',
     data: {
       labels: ['','','','','','','','','',''],
-      datasets: [{
-        data: [0,0,0,0,0,0,0,0,0,0],
-        borderColor: '#06b6d4',
-        backgroundColor: 'rgba(6,182,212,0.08)',
-        fill: true, tension: 0.45, pointRadius: 2, borderWidth: 2
-      }]
+      datasets: [{ data:[0,0,0,0,0,0,0,0,0,0], borderColor:'#06b6d4', backgroundColor:'rgba(6,182,212,0.08)', fill:true, tension:0.45, pointRadius:2, borderWidth:2 }]
     },
     options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { display: false },
-        y: { ticks:{ color:'#4a5888', font:{ size:9 } }, grid:{ color:'rgba(80,140,255,0.07)' } }
-      }
+      responsive:true, maintainAspectRatio:false,
+      animation:{ duration:0 }, /* FIX 9 */
+      plugins:{ legend:{display:false} },
+      scales:{ x:{display:false}, y:{ticks:{color:'#4a5888',font:{size:9}}, grid:{color:'rgba(80,140,255,0.07)'}} }
     }
   });
 }
 
 /* ──────────────────────────────────────────
    MQTT INTEGRATION
-   Menggunakan WSS (port 8884) untuk HiveMQ Cloud
 ────────────────────────────────────────── */
 function setMqttUI(online) {
   const dot    = document.getElementById('mqttDot');
@@ -525,19 +515,18 @@ function setMqttUI(online) {
   const text   = document.getElementById('mqttStatusText');
   const brokerS = document.getElementById('mqttBrokerStatus');
   const connS   = document.getElementById('mqttConnStatus');
-
   if (online) {
-    dot.className    = 'mqtt-dot online';
-    pill.className   = 'mqtt-pill online';
-    text.textContent = 'MQTT Online';
-    if (brokerS) brokerS.innerHTML = '<span class="dot green"></span>Terhubung';
-    if (connS)   connS.innerHTML   = '<span class="dot green"></span>Online';
+    if(dot)    dot.className    = 'mqtt-dot online';
+    if(pill)   pill.className   = 'mqtt-pill online';
+    if(text)   text.textContent = 'MQTT Online';
+    if(brokerS) brokerS.innerHTML = '<span class="dot green"></span>Terhubung';
+    if(connS)   connS.innerHTML   = '<span class="dot green"></span>Online';
   } else {
-    dot.className    = 'mqtt-dot';
-    pill.className   = 'mqtt-pill';
-    text.textContent = 'MQTT Offline';
-    if (brokerS) brokerS.innerHTML = '<span class="dot red"></span>Offline';
-    if (connS)   connS.innerHTML   = '<span class="dot red"></span>Offline';
+    if(dot)    dot.className    = 'mqtt-dot';
+    if(pill)   pill.className   = 'mqtt-pill';
+    if(text)   text.textContent = 'MQTT Offline';
+    if(brokerS) brokerS.innerHTML = '<span class="dot red"></span>Offline';
+    if(connS)   connS.innerHTML   = '<span class="dot red"></span>Offline';
   }
 }
 
@@ -546,73 +535,32 @@ function connectMQTT() {
     try { mqttClient.end(true); } catch(e) {}
     mqttClient = null;
   }
-
   const host = document.getElementById('mqttHost').value.trim();
   const port = parseInt(document.getElementById('mqttPort').value.trim()) || 8884;
   const user = document.getElementById('mqttUser').value.trim();
   const pass = document.getElementById('mqttPass').value.trim();
-
-  /* HiveMQ Cloud memerlukan WSS (WebSocket Secure) */
   const brokerUrl = `wss://${host}:${port}/mqtt`;
-
-  /* Update display info */
   safeSet('mqttHostDisplay', `${host}:${port}`);
-  safeSet('mqttConnBroker', `${host}:${port}`);
+  safeSet('mqttConnBroker',  `${host}:${port}`);
   safeSet('mqttStatusText', 'Menghubungkan...');
-
   const clientId = 'bldc_web_' + Math.random().toString(16).substr(2, 8);
-
   mqttClient = mqtt.connect(brokerUrl, {
-    clientId:        clientId,
-    username:        user,
-    password:        pass,
-    reconnectPeriod: 5000,
-    connectTimeout:  10000,
-    clean:           true
+    clientId, username:user, password:pass,
+    reconnectPeriod:5000, connectTimeout:10000, clean:true
   });
-
   mqttClient.on('connect', () => {
-    console.log('[MQTT] Connected to', brokerUrl);
     setMqttUI(true);
-
-    /* Subscribe ke semua data dan status */
-    const subscribeTopics = [
-      TOPICS.DATA_ALL,
-      TOPICS.STATUS_ALL
-    ];
-    subscribeTopics.forEach(t => {
-      mqttClient.subscribe(t, { qos: 1 }, (err) => {
-        if (err) {
-          console.error('[MQTT] Subscribe error:', t, err);
-        } else {
-          console.log('[MQTT] Subscribed to:', t);
-        }
+    [TOPICS.DATA_ALL, TOPICS.STATUS_ALL].forEach(t => {
+      mqttClient.subscribe(t, { qos:1 }, err => {
+        if (!err) console.log('[MQTT] Subscribed:', t);
       });
     });
-
     addMqttLog(`✓ Connected → ${host}:${port} | Client: ${clientId}`);
   });
-
-  mqttClient.on('error', (err) => {
-    console.error('[MQTT] Error:', err.message);
-    setMqttUI(false);
-    addMqttLog(`✗ Error: ${err.message}`);
-  });
-
-  mqttClient.on('offline', () => {
-    setMqttUI(false);
-    addMqttLog('⚠ Koneksi terputus — mencoba reconnect...');
-  });
-
-  mqttClient.on('reconnect', () => {
-    safeSet('mqttStatusText', 'Reconnecting...');
-    addMqttLog('↻ Reconnecting...');
-  });
-
-  mqttClient.on('close', () => {
-    setMqttUI(false);
-  });
-
+  mqttClient.on('error',     err => { setMqttUI(false); addMqttLog(`✗ Error: ${err.message}`); });
+  mqttClient.on('offline',   ()  => { setMqttUI(false); addMqttLog('⚠ Koneksi terputus — reconnecting...'); });
+  mqttClient.on('reconnect', ()  => { safeSet('mqttStatusText','Reconnecting...'); addMqttLog('↻ Reconnecting...'); });
+  mqttClient.on('close',     ()  => { setMqttUI(false); });
   mqttClient.on('message', handleMqttMessage);
 }
 
@@ -627,70 +575,30 @@ function disconnectMQTT() {
 
 /* ──────────────────────────────────────────
    MQTT MESSAGE HANDLER
-   Routing berdasarkan topic structure:
-   bldc/data/rpm, bldc/data/pwm, dst.
 ────────────────────────────────────────── */
 function handleMqttMessage(topic, message) {
   const raw = message.toString().trim();
-
   msgCount++;
   const timeStr = new Date().toLocaleTimeString('id-ID');
-
   safeSet('mqttMsgCount',     msgCount);
   safeSet('mqttConnMsgCount', msgCount);
   safeSet('lastMsg',          timeStr);
   safeSet('mqttConnLastTime', timeStr);
   safeSet('lastUpdate',       timeStr);
-
   addMqttLog(`↓ [${topic}] ${raw.length > 60 ? raw.substring(0,60)+'...' : raw}`);
 
-  /* ── Route berdasarkan topic ── */
   switch (topic) {
-
-    /* Data dari ESP32 */
-    case TOPICS.DATA_RPM:
-      processRPM(parseFloat(raw));
-      break;
-
-    case TOPICS.DATA_PWM:
-      processPWM(parseFloat(raw));
-      break;
-
-    case TOPICS.DATA_ERROR:
-      processError(parseFloat(raw));
-      break;
-
-    case TOPICS.DATA_SETPOINT:
-      processSetpoint(parseFloat(raw));
-      break;
-
-    case TOPICS.DATA_OVERSHOOT:
-      processOvershoot(parseFloat(raw));
-      break;
-    
-    case TOPICS.DATA_TIMESTAMP:
-      processTimestamp(raw);
-      break;
-
-    case TOPICS.DATA_FUZZY:
-      processFuzzyType(raw);
-      break;
-
-    case TOPICS.DATA_LEVEL:
-      processLevel(parseInt(raw));
-      break;
-
-    /* Status ESP32 */
-    case TOPICS.STATUS_HEARTBEAT:
-      processHeartbeat(raw);
-      break;
-
-    case TOPICS.STATUS_ONLINE:
-      processOnlineStatus(raw);
-      break;
-
+    case TOPICS.DATA_RPM:        processRPM(parseFloat(raw));       break;
+    case TOPICS.DATA_PWM:        processPWM(parseFloat(raw));       break;
+    case TOPICS.DATA_ERROR:      processError(parseFloat(raw));     break;
+    case TOPICS.DATA_SETPOINT:   processSetpoint(parseFloat(raw));  break;
+    case TOPICS.DATA_OVERSHOOT:  processOvershoot(parseFloat(raw)); break;
+    case TOPICS.DATA_TIMESTAMP:  processTimestamp(raw);             break;
+    case TOPICS.DATA_FUZZY:      processFuzzyType(raw);             break;
+    case TOPICS.DATA_LEVEL:      processLevel(parseInt(raw));       break;
+    case TOPICS.STATUS_HEARTBEAT: processHeartbeat(raw);            break;
+    case TOPICS.STATUS_ONLINE:   processOnlineStatus(raw);          break;
     default:
-      /* Fallback: coba parse JSON jika topic bldc/data (tanpa sub) */
       if (topic.startsWith('bldc/data') && raw.startsWith('{')) {
         try {
           const obj = JSON.parse(raw);
@@ -702,9 +610,7 @@ function handleMqttMessage(topic, message) {
           if (obj.fuzzy     !== undefined) processFuzzyType(obj.fuzzy);
           if (obj.level     !== undefined) processLevel(parseInt(obj.level));
           if (obj.timestamp !== undefined) processTimestamp(obj.timestamp);
-        } catch(e) {
-          console.warn('[MQTT] JSON parse failed for topic:', topic);
-        }
+        } catch(e) { console.warn('[MQTT] JSON parse failed:', topic); }
       }
       break;
   }
@@ -713,40 +619,28 @@ function handleMqttMessage(topic, message) {
 /* ──────────────────────────────────────────
    TOPIC PROCESSORS
 ────────────────────────────────────────── */
-
 function processRPM(rpm) {
   if (isNaN(rpm)) return;
-
-  /* Peak tracking */
   if (rpm > peakRPM) peakRPM = rpm;
-
-  /* Update UI cards */
   safeSet('mRPM', rpm.toFixed(1));
   safeSet('miniRpmVal', rpm.toFixed(1));
   safeStyle('barRPM', 'width', Math.min((rpm / 450 * 100), 100).toFixed(1) + '%');
-
-  /* RPM Min/Max */
   if (rpm < rpmMinVal) { rpmMinVal = rpm; safeSet('rpmMin', rpm.toFixed(1)); }
   if (rpm > rpmMaxVal) { rpmMaxVal = rpm; safeSet('rpmMax', rpm.toFixed(1)); }
-
-  /* Speedometer */
   if (gaugeChart) {
     const pct = Math.min((rpm / 450) * 100, 100);
     gaugeChart.data.datasets[0].data = [pct, 100 - pct];
-    gaugeChart.update();
+    gaugeChart.update('none'); /* FIX 9 */
   }
-
-  /* Main RPM chart */
   rpmHistory.push(rpm);
   if (rpmHistory.length > 25) rpmHistory.shift();
   if (rpmChart) {
-    rpmChart.data.labels        = rpmHistory.map((_, i) => i);
+    rpmChart.data.labels           = rpmHistory.map((_, i) => i);
     rpmChart.data.datasets[0].data = [...rpmHistory];
+    /* FIX 6: setpoint line menggunakan currentSetpointVal — tidak ikut RPM */
     rpmChart.data.datasets[1].data = Array(rpmHistory.length).fill(currentSetpointVal);
-    rpmChart.update();
+    rpmChart.update('none'); /* FIX 9 */
   }
-
-  /* Mini chart */
   miniHistory.push(rpm);
   if (miniHistory.length > 15) miniHistory.shift();
   if (miniChart) {
@@ -754,8 +648,6 @@ function processRPM(rpm) {
     miniChart.data.labels           = miniHistory.map((_, i) => i);
     miniChart.update('none');
   }
-
-  /* Data logger */
   logData(rpm);
 }
 
@@ -766,25 +658,28 @@ function processPWM(pwm) {
   safeStyle('barPWM', 'width', Math.min((pwm / 255 * 100), 100).toFixed(1) + '%');
 }
 
+/* FIX 2: Error sekarang diterima dari ESP32 via TOPIC_ERROR */
 function processError(error) {
   if (isNaN(error)) return;
-  safeSet('mError', error.toFixed(1));
+  safeSet('mError', error.toFixed(2));
   safeStyle('barError', 'width', Math.min(Math.abs(error), 100) + '%');
 }
 
+/* FIX 2: Setpoint sekarang diterima dari ESP32 via TOPIC_SETPOINT */
 function processSetpoint(setpoint) {
   if (isNaN(setpoint)) return;
   currentSetpointVal = setpoint;
-  peakRPM = 0; /* reset peak saat setpoint berubah */
+  peakRPM = 0;
   safeSet('mSetpoint', setpoint.toFixed(0));
   safeSet('activeSetpoint', setpoint.toFixed(0) + ' RPM');
   safeStyle('barSetpoint', 'width', Math.min((setpoint / 450 * 100), 100).toFixed(1) + '%');
 }
 
+/* FIX 2: Overshoot sekarang diterima dari ESP32 via TOPIC_OVERSHOOT */
 function processOvershoot(overshoot) {
   if (isNaN(overshoot)) return;
-  safeSet('overshootVal', overshoot.toFixed(1));
-  safeSet('miniOvershootVal', overshoot.toFixed(1));
+  safeSet('overshootVal', overshoot.toFixed(2));
+  safeSet('miniOvershootVal', overshoot.toFixed(2));
   safeStyle('barOvershoot', 'width', Math.min(overshoot, 100) + '%');
 }
 
@@ -798,35 +693,31 @@ function processFuzzyType(fuzzyType) {
 
 function processLevel(level) {
   if (isNaN(level)) return;
+  activeLevelVal = level;
   safeSet('dashLevel', level);
   safeSet('activeLevel', 'Level ' + level);
+  /* FIX 6: JANGAN ubah grafik fuzzy saat level berubah */
 }
 
 function processTimestamp(timestamp) {
   if (!timestamp) return;
-  safeSet('espTimestamp', timestamp);
   window.lastTimestamp = timestamp;
 }
 
-/* ESP32 Status */
 function processHeartbeat(raw) {
   safeHTML('esp32Heartbeat', '<span class="dot green"></span>Active');
   safeSet('esp32LastBeat', new Date().toLocaleTimeString('id-ID'));
-
-  /* Reset heartbeat timeout */
   if (heartbeatTimer) clearTimeout(heartbeatTimer);
   heartbeatTimer = setTimeout(() => {
     safeHTML('esp32Heartbeat', '<span class="dot amber"></span>Timeout');
-  }, 10000); /* 10 detik tanpa heartbeat = timeout */
+  }, 10000);
 }
 
 function processOnlineStatus(raw) {
   const isOnline = raw === '1' || raw.toLowerCase() === 'true' || raw.toLowerCase() === 'online';
-  if (isOnline) {
-    safeHTML('esp32Online', '<span class="dot green"></span>Online');
-  } else {
-    safeHTML('esp32Online', '<span class="dot red"></span>Offline');
-  }
+  safeHTML('esp32Online', isOnline
+    ? '<span class="dot green"></span>Online'
+    : '<span class="dot red"></span>Offline');
 }
 
 /* ──────────────────────────────────────────
@@ -834,41 +725,43 @@ function processOnlineStatus(raw) {
 ────────────────────────────────────────── */
 function logData(rpm) {
   const fuzzy = document.getElementById('activeFuzzy')?.textContent || 'Mamdani';
-  const sp    = document.getElementById('mSetpoint')?.textContent  || '0';
-  const pwm   = document.getElementById('mPWM')?.textContent       || '0';
-  const err   = document.getElementById('mError')?.textContent     || '0';
+  const sp    = document.getElementById('mSetpoint')?.textContent   || '0';
+  const pwm   = document.getElementById('mPWM')?.textContent        || '0';
+  const err   = document.getElementById('mError')?.textContent      || '0';
   const os    = document.getElementById('overshootVal')?.textContent || '0';
   const level = 'L' + activeLevelVal;
 
   allData.unshift({
-  time: window.lastTimestamp ||
-        new Date().toLocaleTimeString('id-ID'),
-    rpm:       rpm.toFixed(1),
+    time:     window.lastTimestamp || new Date().toLocaleTimeString('id-ID'),
+    rpm:      rpm.toFixed(1),
     sp, pwm, err, overshoot: os,
-    type:      fuzzy,
-    beban:     level
+    type:     fuzzy,
+    beban:    level
   });
-
   if (allData.length > 100) allData.pop();
-  renderDataTable(allData);
-  updateStats();
+
+  /* FIX 9: throttle render tabel agar tidak render setiap pesan */
+  if (!tableRenderPending) {
+    tableRenderPending = true;
+    setTimeout(() => {
+      renderDataTable(allData);
+      updateStats();
+      tableRenderPending = false;
+    }, 1000);
+  }
 }
 
 /* ──────────────────────────────────────────
    MQTT LOG
 ────────────────────────────────────────── */
 const mqttLogLines = [];
-
 function addMqttLog(msg) {
   const timeStr = new Date().toLocaleTimeString('id-ID');
   mqttLogLines.unshift(`${timeStr} — ${msg}`);
   if (mqttLogLines.length > 5) mqttLogLines.pop();
-
   const logEl = document.getElementById('mqttLog');
   if (!logEl) return;
-  logEl.innerHTML = mqttLogLines.map(l =>
-    `<div class="log-line">${l}</div>`
-  ).join('');
+  logEl.innerHTML = mqttLogLines.map(l => `<div class="log-line">${l}</div>`).join('');
 }
 
 /* ──────────────────────────────────────────
@@ -881,7 +774,6 @@ function syncSlider() {
   if (inp) inp.value = val;
   updatePreview();
 }
-
 function syncSliderInput() {
   const raw = document.getElementById('spRPMInput').value;
   const val = Math.min(450, Math.max(0, parseInt(raw) || 0));
@@ -897,37 +789,29 @@ function syncSliderInput() {
 function selectFuzzyType(type) {
   activeFuzzyVal = type;
   document.getElementById('fuzzyType').value = type;
-
   const optM = document.getElementById('fuzzyOptM');
   const optS = document.getElementById('fuzzyOptS');
   const chkM = document.getElementById('checkM');
   const chkS = document.getElementById('checkS');
-
   if (type === 'mamdani') {
-    optM.style.borderColor = 'rgba(59,130,246,0.45)';
-    optM.style.background  = 'rgba(59,130,246,0.15)';
-    optS.style.borderColor = 'var(--border)';
-    optS.style.background  = 'transparent';
-    if (chkM) chkM.style.opacity = '1';
-    if (chkS) chkS.style.opacity = '0';
+    optM.style.borderColor = 'rgba(59,130,246,0.45)'; optM.style.background = 'rgba(59,130,246,0.15)';
+    optS.style.borderColor = 'var(--border)';         optS.style.background = 'transparent';
+    if(chkM) chkM.style.opacity = '1'; if(chkS) chkS.style.opacity = '0';
     optM.querySelector('.fo-name').style.color = '#93c5fd';
     optS.querySelector('.fo-name').style.color = 'var(--text-hi)';
   } else {
-    optS.style.borderColor = 'rgba(16,185,129,0.45)';
-    optS.style.background  = 'rgba(16,185,129,0.12)';
-    optM.style.borderColor = 'var(--border)';
-    optM.style.background  = 'transparent';
-    if (chkS) chkS.style.opacity = '1';
-    if (chkM) chkM.style.opacity = '0';
+    optS.style.borderColor = 'rgba(16,185,129,0.45)'; optS.style.background = 'rgba(16,185,129,0.12)';
+    optM.style.borderColor = 'var(--border)';         optM.style.background = 'transparent';
+    if(chkS) chkS.style.opacity = '1'; if(chkM) chkM.style.opacity = '0';
     optS.querySelector('.fo-name').style.color = '#6ee7b7';
     optM.querySelector('.fo-name').style.color = 'var(--text-hi)';
   }
-
   updatePreview();
 }
 
 /* ──────────────────────────────────────────
    KONTROL — LEVEL SELECTOR
+   FIX 8: bisa publish level tanpa harus Start motor
 ────────────────────────────────────────── */
 function selectLevel(n, btn) {
   activeLevelVal = n;
@@ -935,21 +819,35 @@ function selectLevel(n, btn) {
   btn.classList.add('active');
   safeSet('dashLevel', n);
   updatePreview();
+
+  /* FIX 8: kirim level ke ESP32 langsung jika MQTT terhubung */
+  if (mqttClient && mqttClient.connected) {
+    mqttClient.publish(TOPICS.CTRL_LEVEL, String(n), { qos:1, retain:true });
+    addMqttLog(`↑ [${TOPICS.CTRL_LEVEL}] ${n} (tanpa start)`);
+  }
+}
+
+/* ──────────────────────────────────────────
+   FIX 7: TOMBOL NETRAL SERVO
+────────────────────────────────────────── */
+function setServoNeutral() {
+  if (!mqttClient || !mqttClient.connected) {
+    alert('MQTT belum terhubung!');
+    return;
+  }
+  mqttClient.publish(TOPICS.CTRL_NEUTRAL, '1', { qos:1 });
+  addMqttLog(`↑ [${TOPICS.CTRL_NEUTRAL}] 1 (servo netral)`);
 }
 
 /* ──────────────────────────────────────────
    MQTT PREVIEW UPDATE
 ────────────────────────────────────────── */
 function updatePreview() {
-  const sp  = document.getElementById('spRPM')?.value     || '0';
-  const ft  = document.getElementById('fuzzyType')?.value || 'mamdani';
-
-  /* Preview untuk bldc/control/start */
+  const sp = document.getElementById('spRPM')?.value     || '0';
+  const ft = document.getElementById('fuzzyType')?.value || 'mamdani';
   safeSet('prevSetpoint',  sp);
   safeSet('prevFuzzy',    `"${ft}"`);
   safeSet('prevLevel',     activeLevelVal);
-
-  /* Preview untuk individual topics */
   safeSet('prevSetpoint2', sp);
   safeSet('prevFuzzy2',   `"${ft}"`);
   safeSet('prevLevel2',    activeLevelVal);
@@ -959,42 +857,18 @@ function updatePreview() {
    MOTOR CONTROL
 ────────────────────────────────────────── */
 function runMotor() {
-
   if (!mqttClient || !mqttClient.connected) {
     alert('MQTT belum terhubung!');
     return;
   }
-
   peakRPM = 0;
-
   const setpoint = parseInt(document.getElementById('spRPM').value) || 0;
-  const fuzzy = document.getElementById('fuzzyType').value || 'mamdani';
+  const fuzzy    = document.getElementById('fuzzyType').value || 'mamdani';
 
-  /* kirim parameter */
-  mqttClient.publish(
-    TOPICS.CTRL_SETPOINT,
-    String(setpoint),
-    { qos: 1, retain: true }
-  );
-
-  mqttClient.publish(
-    TOPICS.CTRL_FUZZY,
-    fuzzy,
-    { qos: 1, retain: true }
-  );
-
-  mqttClient.publish(
-    TOPICS.CTRL_LEVEL,
-    String(activeLevelVal),
-    { qos: 1, retain: true }
-  );
-
-  /* perintah start */
-  mqttClient.publish(
-    TOPICS.CTRL_START,
-    '1',
-    { qos: 1 }
-  );
+  mqttClient.publish(TOPICS.CTRL_SETPOINT, String(setpoint), { qos:1, retain:true });
+  mqttClient.publish(TOPICS.CTRL_FUZZY,    fuzzy,            { qos:1, retain:true });
+  mqttClient.publish(TOPICS.CTRL_LEVEL,    String(activeLevelVal), { qos:1, retain:true });
+  mqttClient.publish(TOPICS.CTRL_START,    '1',              { qos:1 });
 
   addMqttLog(`↑ [${TOPICS.CTRL_SETPOINT}] ${setpoint}`);
   addMqttLog(`↑ [${TOPICS.CTRL_FUZZY}] ${fuzzy}`);
@@ -1002,66 +876,38 @@ function runMotor() {
   addMqttLog(`↑ [${TOPICS.CTRL_START}] 1`);
 
   motorRunning = true;
-
   safeSet('motorStatusBadge', '● Running');
   setElem('motorStatusBadge', el => el.className = 'badge badge-green');
-
-  safeHTML('motorStatusText',
-    '<span class="dot green"></span>Running'
-  );
-
+  safeHTML('motorStatusText', '<span class="dot green"></span>Running');
   safeSet('activeSetpoint', setpoint + ' RPM');
-
-  safeSet(
-    'activeFuzzy',
-    fuzzy.charAt(0).toUpperCase() + fuzzy.slice(1)
-  );
-
-  safeSet(
-    'activeLevel',
-    'Level ' + activeLevelVal
-  );
-
-  safeSet(
-    'dashFuzzyBadge',
-    'Fuzzy: ' +
-    fuzzy.charAt(0).toUpperCase() +
-    fuzzy.slice(1)
-  );
-
+  safeSet('activeFuzzy', fuzzy.charAt(0).toUpperCase() + fuzzy.slice(1));
+  safeSet('activeLevel', 'Level ' + activeLevelVal);
+  safeSet('dashFuzzyBadge', 'Fuzzy: ' + fuzzy.charAt(0).toUpperCase() + fuzzy.slice(1));
   safeSet('dashStatusBadge', '● Running');
 }
 
+/* FIX 1: Fungsi askStop() yang sebelumnya HILANG — menyebabkan tombol Stop tidak berfungsi */
+function askStop() {
+  const overlay = document.getElementById('confirmOverlay');
+  if (overlay) overlay.classList.add('show');
+}
+
+function closeConfirm() {
+  const overlay = document.getElementById('confirmOverlay');
+  if (overlay) overlay.classList.remove('show');
+}
+
 function confirmStop() {
-
   closeConfirm();
-
   if (mqttClient && mqttClient.connected) {
-
-    mqttClient.publish(
-      TOPICS.CTRL_STOP,
-      '1',
-      { qos: 1 }
-    );
-
+    mqttClient.publish(TOPICS.CTRL_STOP, '1', { qos:1 });
     addMqttLog(`↑ [${TOPICS.CTRL_STOP}] 1`);
   }
-
   peakRPM = 0;
   motorRunning = false;
-
   safeSet('motorStatusBadge', '● Stopped');
-
-  setElem(
-    'motorStatusBadge',
-    el => el.className = 'badge badge-red'
-  );
-
-  safeHTML(
-    'motorStatusText',
-    '<span class="dot red"></span>Stopped'
-  );
-
+  setElem('motorStatusBadge', el => el.className = 'badge badge-red');
+  safeHTML('motorStatusText', '<span class="dot red"></span>Stopped');
   safeSet('activeSetpoint', '—');
   safeSet('activeFuzzy', '—');
   safeSet('activeLevel', '—');
@@ -1074,7 +920,6 @@ function confirmStop() {
 function renderDataTable(data) {
   const body = document.getElementById('dataTableBody');
   if (!body) return;
-
   body.innerHTML = data.slice(0, 100).map((d, i) => `
     <tr>
       <td style="color:var(--text-lo)">${i+1}</td>
@@ -1082,40 +927,45 @@ function renderDataTable(data) {
       <td><b>${d.rpm}</b></td>
       <td>${d.sp}</td>
       <td>${d.pwm}</td>
-      <td><span class="badge ${parseFloat(d.err) > 20 ? 'badge-red' : parseFloat(d.err) > 10 ? 'badge-amber' : 'badge-green'}">${d.err}</span></td>
-      <td><span class="badge ${parseFloat(d.overshoot || 0) > 10 ? 'badge-amber' : 'badge-green'}">${d.overshoot || '0'}</span></td>
-      <td><span class="badge ${d.type === 'Sugeno' ? 'badge-green' : 'badge-blue'}">${d.type}</span></td>
+      <td><span class="badge ${parseFloat(d.err)>20?'badge-red':parseFloat(d.err)>10?'badge-amber':'badge-green'}">${d.err}</span></td>
+      <td><span class="badge ${parseFloat(d.overshoot||0)>10?'badge-amber':'badge-green'}">${d.overshoot||'0'}</span></td>
+      <td><span class="badge ${d.type==='Sugeno'||d.type==='sugeno'?'badge-green':'badge-blue'}">${d.type}</span></td>
       <td><span class="badge badge-cyan">${d.beban}</span></td>
     </tr>`).join('');
-
   safeSet('dataCount', data.length + ' entri');
 }
 
+/* FIX 3: Bug rata-rata error Mamdani & Sugeno diperbaiki */
 function updateStats() {
   const total = allData.length;
   safeSet('statTotal', total);
   if (total === 0) return;
 
-  const avgRPM = allData.reduce((s,d) => s + parseFloat(d.rpm), 0) / total;
+  const avgRPM = allData.reduce((s,d) => s + parseFloat(d.rpm)||0, 0) / total;
   safeSet('statAvgRPM', avgRPM.toFixed(1));
 
+  /* FIX 3: toLowerCase() untuk keduanya agar cocok "Mamdani" dan "mamdani" */
   const mRows = allData.filter(d => d.type.toLowerCase() === 'mamdani');
   const sRows = allData.filter(d => d.type.toLowerCase() === 'sugeno');
 
   if (mRows.length) {
-    const avgM = mRows.reduce((s,d) => s + Math.abs(parseFloat(d.err)), 0) / mRows.length;
-    safeSet('statErrM', avgM.toFixed(1) + '%');
+    const avgM = mRows.reduce((s,d) => s + (Math.abs(parseFloat(d.err))||0), 0) / mRows.length;
+    safeSet('statErrM', avgM.toFixed(2) + '%');
+  } else {
+    safeSet('statErrM', '—');
   }
+
   if (sRows.length) {
-    const avgS = sRows.reduce((s,d) => s + Math.abs(parseFloat(d.err)), 0) / sRows.length;
-    safeSet('statErrS', avgS.toFixed(1) + '%');
+    const avgS = sRows.reduce((s,d) => s + (Math.abs(parseFloat(d.err))||0), 0) / sRows.length;
+    safeSet('statErrS', avgS.toFixed(2) + '%');
+  } else {
+    safeSet('statErrS', '—');
   }
 }
 
 function applyFilter() {
-  const beban  = document.getElementById('filterBeban')?.value || 'all';
-  const fuzzyF = document.getElementById('filterFuzzy')?.value || 'all';
-
+  const beban  = document.getElementById('filterBeban')?.value  || 'all';
+  const fuzzyF = document.getElementById('filterFuzzy')?.value  || 'all';
   let filtered = [...allData];
   if (beban  !== 'all') filtered = filtered.filter(d => d.beban === beban);
   if (fuzzyF !== 'all') filtered = filtered.filter(d => d.type.toLowerCase() === fuzzyF.toLowerCase());
@@ -1163,9 +1013,9 @@ function handleImport(e) {
 }
 
 function exportCSV() {
-  const headers = 'Waktu,RPM,Setpoint,PWM,Error,Overshoot,Tipe Fuzzy,Beban\n';
+  const headers = 'Waktu,RPM,Setpoint,PWM,Error(%),Overshoot(%),Tipe Fuzzy,Beban\n';
   const rows    = allData.map(d =>
-    `${d.time},${d.rpm},${d.sp},${d.pwm},${d.err},${d.overshoot || '0'},${d.type},${d.beban}`
+    `${d.time},${d.rpm},${d.sp},${d.pwm},${d.err},${d.overshoot||'0'},${d.type},${d.beban}`
   ).join('\n');
   const blob = new Blob([headers + rows], { type:'text/csv' });
   const a    = document.createElement('a');
@@ -1186,18 +1036,14 @@ function saveMQTTConfig() {
 }
 
 window.addEventListener('load', () => {
-  /* Load saved config */
   ['mqttHost','mqttPort','mqttUser','mqttPass'].forEach(id => {
     const saved = localStorage.getItem('bldc_' + id);
     const el    = document.getElementById(id);
     if (saved && el) el.value = saved;
   });
-
   updatePreview();
   initFuzzySubCharts();
   initCompareCharts();
-
-  /* Auto-connect jika config tersimpan */
   if (localStorage.getItem('bldc_mqttHost')) {
     setTimeout(() => {
       try { connectMQTT(); } catch(e) { console.warn('Auto-connect failed:', e); }
@@ -1208,25 +1054,13 @@ window.addEventListener('load', () => {
 /* ──────────────────────────────────────────
    HELPER UTILITIES
 ────────────────────────────────────────── */
-function safeSet(id, value) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = value;
-}
-function safeHTML(id, html) {
-  const el = document.getElementById(id);
-  if (el) el.innerHTML = html;
-}
-function safeStyle(id, prop, val) {
-  const el = document.getElementById(id);
-  if (el) el.style[prop] = val;
-}
-function setElem(id, fn) {
-  const el = document.getElementById(id);
-  if (el) fn(el);
-}
+function safeSet(id, value) { const el=document.getElementById(id); if(el) el.textContent=value; }
+function safeHTML(id, html) { const el=document.getElementById(id); if(el) el.innerHTML=html; }
+function safeStyle(id, prop, val) { const el=document.getElementById(id); if(el) el.style[prop]=val; }
+function setElem(id, fn) { const el=document.getElementById(id); if(el) fn(el); }
 
 /* ──────────────────────────────────────────
-   EXPOSE GLOBALS (untuk onclick handlers di HTML)
+   EXPOSE GLOBALS
 ────────────────────────────────────────── */
 window.showPage            = showPage;
 window.toggleSubMenu       = toggleSubMenu;
@@ -1239,9 +1073,10 @@ window.selectLevel         = selectLevel;
 window.syncSlider          = syncSlider;
 window.syncSliderInput     = syncSliderInput;
 window.runMotor            = runMotor;
-window.askStop             = askStop;
+window.askStop             = askStop;         /* FIX 1: expose fungsi yang hilang */
 window.closeConfirm        = closeConfirm;
 window.confirmStop         = confirmStop;
+window.setServoNeutral     = setServoNeutral; /* FIX 7: expose fungsi netral */
 window.connectMQTT         = connectMQTT;
 window.disconnectMQTT      = disconnectMQTT;
 window.saveMQTTConfig      = saveMQTTConfig;
