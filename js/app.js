@@ -39,6 +39,7 @@ const TOPICS = {
   DATA_FUZZY:      'bldc/data/fuzzy',
   DATA_LEVEL:      'bldc/data/level',
   DATA_OVERSHOOT:  'bldc/data/overshoot',
+  DATA_TIMESTAMP:  'bldc/data/timestamp',
 
   /* wildcard subscribe */
   DATA_ALL:        'bldc/data/#',
@@ -666,6 +667,10 @@ function handleMqttMessage(topic, message) {
     case TOPICS.DATA_OVERSHOOT:
       processOvershoot(parseFloat(raw));
       break;
+    
+    case TOPICS.DATA_TIMESTAMP:
+      processTimestamp(raw);
+      break;
 
     case TOPICS.DATA_FUZZY:
       processFuzzyType(raw);
@@ -696,6 +701,7 @@ function handleMqttMessage(topic, message) {
           if (obj.overshoot !== undefined) processOvershoot(parseFloat(obj.overshoot));
           if (obj.fuzzy     !== undefined) processFuzzyType(obj.fuzzy);
           if (obj.level     !== undefined) processLevel(parseInt(obj.level));
+          if (obj.timestamp !== undefined) processTimestamp(obj.timestamp);
         } catch(e) {
           console.warn('[MQTT] JSON parse failed for topic:', topic);
         }
@@ -796,6 +802,12 @@ function processLevel(level) {
   safeSet('activeLevel', 'Level ' + level);
 }
 
+function processTimestamp(timestamp) {
+  if (!timestamp) return;
+  safeSet('espTimestamp', timestamp);
+  window.lastTimestamp = timestamp;
+}
+
 /* ESP32 Status */
 function processHeartbeat(raw) {
   safeHTML('esp32Heartbeat', '<span class="dot green"></span>Active');
@@ -829,7 +841,8 @@ function logData(rpm) {
   const level = 'L' + activeLevelVal;
 
   allData.unshift({
-    time:      new Date().toLocaleTimeString('id-ID'),
+  time: window.lastTimestamp ||
+        new Date().toLocaleTimeString('id-ID'),
     rpm:       rpm.toFixed(1),
     sp, pwm, err, overshoot: os,
     type:      fuzzy,
