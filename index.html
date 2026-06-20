@@ -769,10 +769,12 @@
       <div class="card">
         <div class="card-title mb-12">Aksi Motor</div>
         <button class="motor-btn motor-run mb-12" onclick="runMotor()">▶ Jalankan Motor</button>
-        <button class="motor-btn motor-stop"       onclick="askStop()">■ Stop Motor</button>
+        <button class="motor-btn motor-stop mb-12" onclick="askStop()">■ Stop Motor</button>
+        <button class="motor-btn motor-neutral"    onclick="setServoNeutral()">⏸ Netral Servo (Lepas Beban)</button>
         <p class="motor-hint">
           Tekan <b>Jalankan</b> untuk mengirim payload ke <b>bldc/control/start</b> via MQTT HiveMQ.<br>
-          ESP32 akan mengganti logika kontrolnya sesuai <b>fuzzy_type</b> dan <b>load_level</b> yang dipilih.
+          ESP32 akan mengganti logika kontrolnya sesuai <b>fuzzy_type</b> dan <b>load_level</b> yang dipilih.<br>
+          Tombol <b>Netral</b> mengembalikan servo beban ke posisi 0 tanpa menghentikan motor.
         </p>
       </div>
 
