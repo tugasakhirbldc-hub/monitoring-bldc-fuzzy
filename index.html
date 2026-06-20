@@ -599,24 +599,35 @@
         <input type="hidden" id="fuzzyType" value="mamdani">
       </div>
 
-      <!-- Level Beban -->
-      <div class="card">
-        <div class="card-title mb-12">Kondisi Pembebanan</div>
-        <div class="level-btns">
-          <button class="level-btn active" onclick="selectLevel(1,this)">
-            <div class="lb-icon">⚡</div>
-            Level 1<br><span class="lb-sub">Ringan</span>
-          </button>
-          <button class="level-btn" onclick="selectLevel(2,this)">
-            <div class="lb-icon">⚡⚡</div>
-            Level 2<br><span class="lb-sub">Sedang</span>
-          </button>
-          <button class="level-btn" onclick="selectLevel(3,this)">
-            <div class="lb-icon">⚡⚡⚡</div>
-            Level 3<br><span class="lb-sub">Berat</span>
-          </button>
-        </div>
-      </div>
+      <div class="level-btns">
+
+  <button class="level-btn active"
+          onclick="selectLevel(1,this)">
+    <div class="lb-icon">⚡</div>
+    Level 1<br>
+    <span class="lb-sub">Ringan</span>
+  </button>
+
+  <button class="level-btn"
+          onclick="selectLevel(2,this)">
+    <div class="lb-icon">⚡⚡</div>
+    Level 2<br>
+    <span class="lb-sub">Sedang</span>
+  </button>
+
+  <button class="level-btn"
+          onclick="selectLevel(3,this)">
+    <div class="lb-icon">⚡⚡⚡</div>
+    Level 3<br>
+    <span class="lb-sub">Berat</span>
+  </button>
+
+  <button class="level-btn neutral-btn"
+          onclick="setServoNeutral()">
+    ⏸ Netral
+  </button>
+
+</div>
 
       <!-- MQTT Publish Preview -->
 <div class="card">
@@ -766,17 +777,27 @@
       </div>
 
       <!-- Aksi Motor -->
-      <div class="card">
-        <div class="card-title mb-12">Aksi Motor</div>
-        <button class="motor-btn motor-run mb-12" onclick="runMotor()">▶ Jalankan Motor</button>
-        <button class="motor-btn motor-stop mb-12" onclick="askStop()">■ Stop Motor</button>
-        <button class="motor-btn motor-neutral"    onclick="setServoNeutral()">⏸ Netral Servo (Lepas Beban)</button>
-        <p class="motor-hint">
-          Tekan <b>Jalankan</b> untuk mengirim payload ke <b>bldc/control/start</b> via MQTT HiveMQ.<br>
-          ESP32 akan mengganti logika kontrolnya sesuai <b>fuzzy_type</b> dan <b>load_level</b> yang dipilih.<br>
-          Tombol <b>Netral</b> mengembalikan servo beban ke posisi 0 tanpa menghentikan motor.
-        </p>
-      </div>
+<div class="card">
+  <div class="card-title mb-12">Aksi Motor</div>
+
+  <button class="motor-btn motor-run mb-12"
+          onclick="runMotor()">
+    ▶ Jalankan Motor
+  </button>
+
+  <button class="motor-btn motor-stop mb-12"
+          onclick="askStop()">
+    ■ Stop Motor
+  </button>
+
+  <p class="motor-hint">
+    Tekan <b>Jalankan</b> untuk mengirim payload ke
+    <b>bldc/control/start</b> via MQTT HiveMQ.<br>
+
+    ESP32 akan mengganti logika kontrolnya sesuai
+    <b>fuzzy_type</b> dan <b>load_level</b> yang dipilih.
+  </p>
+</div>
 
       <!-- Mini RPM Chart -->
       <div class="card flex-1">

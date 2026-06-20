@@ -865,9 +865,9 @@ function runMotor() {
   const setpoint = parseInt(document.getElementById('spRPM').value) || 0;
   const fuzzy    = document.getElementById('fuzzyType').value || 'mamdani';
 
-  mqttClient.publish(TOPICS.CTRL_SETPOINT, String(setpoint), { qos:1, retain:true });
-  mqttClient.publish(TOPICS.CTRL_FUZZY,    fuzzy,            { qos:1, retain:true });
-  mqttClient.publish(TOPICS.CTRL_LEVEL,    String(activeLevelVal), { qos:1, retain:true });
+  mqttClient.publish(TOPICS.CTRL_SETPOINT, String(setpoint), { qos:1});
+  mqttClient.publish(TOPICS.CTRL_FUZZY,    fuzzy,            { qos:1});
+  mqttClient.publish(TOPICS.CTRL_LEVEL,    String(activeLevelVal), { qos:1});
   mqttClient.publish(TOPICS.CTRL_START,    '1',              { qos:1 });
 
   addMqttLog(`↑ [${TOPICS.CTRL_SETPOINT}] ${setpoint}`);
