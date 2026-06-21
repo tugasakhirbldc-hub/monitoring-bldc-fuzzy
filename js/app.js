@@ -305,29 +305,25 @@ function processIncomingData(rpm, pwm, error, level) {
 
 function logTelemetry(rpm, pwm, error, overshoot, activeFuzzyVal, level) {
   const timeStr = new Date().toLocaleTimeString('id-ID'); // Waktu jam lokal aktual
+  
   allData.unshift({ 
     time: timeStr, 
     rpm: rpm.toFixed(1), 
     sp: currentSetpointVal, 
     pwm: pwm.toFixed(0), 
-    err: err.toFixed(1), 
-    os: os.toFixed(1), 
-    type: fuzzy === 'mamdani' ? 'Mamdani' : 'Sugeno', 
+    err: error.toFixed(1),           // FIX: menggunakan parameter 'error'
+    os: overshoot.toFixed(1),        // FIX: menggunakan parameter 'overshoot'
+    type: activeFuzzyVal === 'mamdani' ? 'Mamdani' : 'Sugeno', // FIX: menggunakan parameter 'activeFuzzyVal'
     beban: level 
   });
   
-  // ==========================================
-  // FIX: Baris "if (allData.length > 200) allData.pop();" TELAH DIHAPUS!
-  // Sekarang data akan terekam tanpa batas (infinite logging).
-  // ==========================================
-
   // Throttle render tabel agar browser laptop/HP tidak lag saat data ribuan
   if (!window.tableRenderPending) {
     window.tableRenderPending = true;
     setTimeout(() => {
       updateTelemetryUI();
       window.tableRenderPending = false;
-    }, 1000); // UI tabel di-update setiap 1 detik saja, meski data masuk lebih cepat
+    }, 1000); // UI tabel di-update setiap 1 detik
   }
 }
 
