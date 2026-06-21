@@ -1,26 +1,14 @@
 /* ════════════════════════════════════════════
    BLDC IoT Monitor — app.js  (FIXED v2)
    Perbaikan berdasarkan PENGUJIAN_1:
-
-   FIX 1 : Tambah fungsi askStop() yang hilang → tombol Stop berfungsi
-   FIX 2 : publishData() ESP32 kirim semua topic (error, setpoint, overshoot, dll)
-            → SSE / setpoint / overshoot kini muncul di dashboard
-   FIX 3 : updateStats() — bug filter Mamdani/Sugeno diperbaiki
-   FIX 4 : Grafik Fuzzy sub-page kini bisa di-update dari data real telemetry
-   FIX 5 : Tabel perbandingan bisa di-refresh dari data telemetry
-   FIX 6 : Grafik RPM tidak ikut berubah saat level beban diubah
-            (level hanya atur servo, bukan grafik respons)
-   FIX 7 : Tombol NETRAL servo ditambah di halaman Kontrol
-   FIX 8 : Tombol "Set Level" bisa dipakai tanpa harus Start dulu
-   FIX 9 : Optimasi performa — chart.update('none') & throttle render
 ════════════════════════════════════════════ */
 
 'use strict';
-
 /* ──────────────────────────────────────────
    MQTT TOPIC CONSTANTS
 ────────────────────────────────────────── */
 const TOPICS = {
+  /* FIX 1: gunakan topic bldc/data/# untuk semua data telemetri */
   DATA_RPM:        'bldc/data/rpm',
   DATA_PWM:        'bldc/data/pwm',
   DATA_ERROR:      'bldc/data/error',
@@ -30,15 +18,14 @@ const TOPICS = {
   DATA_OVERSHOOT:  'bldc/data/overshoot',
   DATA_TIMESTAMP:  'bldc/data/timestamp',
   DATA_ALL:        'bldc/data/#',
-  STATUS_HEARTBEAT:'bldc/status/heartbeat',
-  STATUS_ONLINE:   'bldc/status/online',
-  STATUS_ALL:      'bldc/status/#',
+
+  /* FIX 2: gunakan kontrol bldc/control/# untuk semua perintah kontrol */
   CTRL_START:      'bldc/control/start',
   CTRL_STOP:       'bldc/control/stop',
   CTRL_SETPOINT:   'bldc/control/setpoint',
   CTRL_FUZZY:      'bldc/control/fuzzy',
   CTRL_LEVEL:      'bldc/control/level',
-  CTRL_NEUTRAL:    'bldc/control/neutral',   // FIX 7: topic baru untuk netral servo
+  CTRL_NEUTRAL:    'bldc/control/neutral',
   CTRL_RESET:      'bldc/control/reset',
   CTRL_EMERGENCY:  'bldc/control/emergency',
   CTRL_ALL:        'bldc/control/#'
@@ -59,7 +46,6 @@ let msgCount           = 0;
 let miniChart          = null;
 let heartbeatTimer     = null;
 
-/* FIX 9: throttle flag untuk render tabel (hindari render tiap 1 s) */
 let tableRenderPending = false;
 
 /* data logger */

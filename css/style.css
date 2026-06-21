@@ -805,6 +805,12 @@ body::selection {
 .confirm-box p  { font-size: 13px; color: var(--text-mid); margin-bottom: 20px; line-height: 1.6; }
 .confirm-actions { display: flex; gap: 10px; justify-content: center; }
 
+/* TAMBAHAN UNTUK FIX UI BARU */
+.badge-red { background:rgba(239,68,68,0.15); color:#fca5a5; border-color:rgba(239,68,68,0.30); }
+.text-left { text-align: left; }
+.selected-green { border-color: rgba(16,185,129,0.45) !important; background: rgba(16,185,129,0.15) !important; }
+.selected-blue { border-color: rgba(59,130,246,0.45) !important; background: rgba(59,130,246,0.15) !important; }
+
 /* ══════════════════════════════════
    RESPONSIVE
 ══════════════════════════════════ */
