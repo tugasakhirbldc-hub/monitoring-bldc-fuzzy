@@ -31,20 +31,14 @@
       </div>
     </div>
     <div class="topbar-right">
-      <div class="mqtt-pill" id="mqttPill">
-        <div class="mqtt-dot" id="mqttDot"></div>
-        <span id="mqttStatusText">MQTT Offline</span>
-      </div>
-      <div class="datetime-box">
-        <div class="date-display" id="dateDisplay">-- ---- ----</div>
-        <div class="time-display" id="clockDisplay">--:--:--</div>
-      </div>
+      <div class="mqtt-pill" id="mqttPill"><div class="mqtt-dot" id="mqttDot"></div><span id="mqttStatusText">MQTT Offline</span></div>
+      <div class="datetime-box"><div class="date-display" id="dateDisplay">-- ---- ----</div><div class="time-display" id="clockDisplay">--:--:--</div></div>
     </div>
   </div>
 
   <nav class="topbar-nav">
     <div class="nav-item active" onclick="showPage('dashboard', this)"><span class="nav-icon">🏠</span> Dashboard</div>
-    <div class="nav-item has-sub" id="nav-fuzzy" onclick="toggleSubMenu('fuzzy-sub','nav-fuzzy',event)">
+    <div class="nav-item has-sub" id="nav-fuzzy" onclick="toggleSubMenu('fuzzy-sub',event)">
       <span class="nav-icon">📊</span> Tipe Fuzzy <span class="sub-arrow">▾</span>
       <div class="sub-menu" id="fuzzy-sub">
         <div class="sub-item" onclick="showFuzzyMode('mamdani',event)"><span class="sub-dot blue"></span> Fuzzy Mamdani</div>
@@ -62,10 +56,7 @@
 
 <div id="page-dashboard" class="page active">
   <div class="page-head mb-16">
-    <div>
-      <div class="section-title">Kondisi Terkini Motor BLDC</div>
-      <div class="section-sub">Real-time monitoring via MQTT broker — bldc/data/*</div>
-    </div>
+    <div><div class="section-title">Kondisi Terkini Motor BLDC</div><div class="section-sub">Real-time monitoring via MQTT broker — bldc/data/*</div></div>
     <div class="flex gap-8 flex-wrap align-center">
       <span class="badge badge-gold">Level: <b id="dashLevel">N</b></span>
       <span class="badge badge-cyan" id="dashFuzzyBadge">Fuzzy: Sugeno</span>
@@ -74,61 +65,22 @@
   </div>
 
   <div class="grid4 mb-16">
-    <div class="metric-card">
-      <div class="mc-glow" style="background:radial-gradient(#3b82f6,transparent)"></div>
-      <div class="mc-label">RPM Aktual</div>
-      <div class="mc-value" id="mRPM">0</div>
-      <div class="mc-unit">rpm</div>
-      <div class="mc-bar"><div class="mc-bar-fill" id="barRPM" style="width:0%"></div></div>
-    </div>
-    <div class="metric-card green">
-      <div class="mc-glow" style="background:radial-gradient(#10b981,transparent)"></div>
-      <div class="mc-label">PWM Output</div>
-      <div class="mc-value" id="mPWM">103</div>
-      <div class="mc-unit">duty cycle (103–255)</div>
-      <div class="mc-bar"><div class="mc-bar-fill green" id="barPWM" style="width:0%"></div></div>
-    </div>
-    <div class="metric-card amber">
-      <div class="mc-glow" style="background:radial-gradient(#f59e0b,transparent)"></div>
-      <div class="mc-label">Steady-State Error</div>
-      <div class="mc-value" id="mError">0</div>
-      <div class="mc-unit">rpm</div>
-      <div class="mc-bar"><div class="mc-bar-fill amber" id="barError" style="width:0%"></div></div>
-    </div>
-    <div class="metric-card">
-      <div class="mc-glow" style="background:radial-gradient(#06b6d4,transparent)"></div>
-      <div class="mc-label">Setpoint RPM</div>
-      <div class="mc-value" id="mSetpoint">0</div>
-      <div class="mc-unit">target rpm</div>
-      <div class="mc-bar"><div class="mc-bar-fill" id="barSetpoint" style="width:0%"></div></div>
-    </div>
-    <div class="metric-card amber">
-      <div class="mc-glow" style="background:radial-gradient(#f59e0b,transparent)"></div>
-      <div class="mc-label">Overshoot</div>
-      <div class="mc-value" id="overshootVal">0</div>
-      <div class="mc-unit">%</div>
-      <div class="mc-bar"><div class="mc-bar-fill amber" id="barOvershoot" style="width:0%"></div></div>
-    </div>
+    <div class="metric-card"><div class="mc-glow" style="background:radial-gradient(#3b82f6,transparent)"></div><div class="mc-label">RPM Aktual</div><div class="mc-value" id="mRPM">0</div><div class="mc-unit">rpm</div><div class="mc-bar"><div class="mc-bar-fill" id="barRPM" style="width:0%"></div></div></div>
+    <div class="metric-card green"><div class="mc-glow" style="background:radial-gradient(#10b981,transparent)"></div><div class="mc-label">PWM Output</div><div class="mc-value" id="mPWM">103</div><div class="mc-unit">duty cycle (103–255)</div><div class="mc-bar"><div class="mc-bar-fill green" id="barPWM" style="width:0%"></div></div></div>
+    <div class="metric-card amber"><div class="mc-glow" style="background:radial-gradient(#f59e0b,transparent)"></div><div class="mc-label">Steady-State Error</div><div class="mc-value" id="mError">0</div><div class="mc-unit">rpm</div><div class="mc-bar"><div class="mc-bar-fill amber" id="barError" style="width:0%"></div></div></div>
+    <div class="metric-card"><div class="mc-glow" style="background:radial-gradient(#06b6d4,transparent)"></div><div class="mc-label">Setpoint RPM</div><div class="mc-value" id="mSetpoint">0</div><div class="mc-unit">target rpm</div><div class="mc-bar"><div class="mc-bar-fill" id="barSetpoint" style="width:0%"></div></div></div>
+    <div class="metric-card amber"><div class="mc-glow" style="background:radial-gradient(#f59e0b,transparent)"></div><div class="mc-label">Overshoot</div><div class="mc-value" id="overshootVal">0</div><div class="mc-unit">%</div><div class="mc-bar"><div class="mc-bar-fill amber" id="barOvershoot" style="width:0%"></div></div></div>
   </div>
 
   <div class="dash-row mb-16">
     <div class="card dash-chart">
       <div class="section-head">
-        <div>
-          <div class="card-title">Grafik RPM Real-time</div>
-          <div class="section-title" style="font-size:15px;">Live Feed</div>
-        </div>
-        <div class="flex gap-8">
-          <span class="leg-item"><span class="leg-line solid"></span> RPM</span>
-          <span class="leg-item"><span class="leg-line dashed"></span> Setpoint</span>
-        </div>
+        <div><div class="card-title">Grafik RPM Real-time</div><div class="section-title" style="font-size:15px;">Live Feed</div></div>
+        <div class="flex gap-8"><span class="leg-item"><span class="leg-line solid"></span> RPM</span><span class="leg-item"><span class="leg-line dashed"></span> Setpoint</span></div>
       </div>
       <div class="chart-wrap"><canvas id="rpmChart"></canvas></div>
     </div>
-    <div class="card dash-gauge">
-      <div class="card-title">Speedometer</div>
-      <div class="gauge-wrap"><canvas id="gaugeChart"></canvas></div>
-    </div>
+    <div class="card dash-gauge"><div class="card-title">Speedometer</div><div class="gauge-wrap"><canvas id="gaugeChart"></canvas></div></div>
   </div>
 
   <div class="grid2 mb-16">
@@ -148,35 +100,16 @@
         <div class="range-sep">—</div>
         <div><div class="range-lbl">MAX</div><div class="range-val red" id="rpmMax">0</div><div class="range-unit">rpm</div></div>
       </div>
-      <div class="divider"></div>
-      <div class="last-upd">Updated: <span id="lastUpdate">--</span></div>
+      <div class="divider"></div><div class="last-upd">Updated: <span id="lastUpdate">--</span></div>
     </div>
   </div>
 </div>
 
 <div id="page-fuzzy" class="page">
-  <div id="fuzzy-selector">
-    <div class="page-head mb-24"><div><div class="section-title">Tipe Fuzzy</div><div class="section-sub">Pilih metode fuzzy yang ingin ditampilkan atau dianalisis</div></div></div>
-    <div class="fuzzy-selector-grid">
-      <div class="fuzzy-selector-card blue" onclick="showFuzzyMode('mamdani',null)">
-        <div class="fsc-icon">🔵</div><div class="fsc-title">Fuzzy Mamdani</div>
-        <div class="fsc-desc">Sistem inferensi berbasis aturan dengan defuzzifikasi Centroid.</div>
-      </div>
-      <div class="fuzzy-selector-card green" onclick="showFuzzyMode('sugeno',null)">
-        <div class="fsc-icon">🟢</div><div class="fsc-title">Fuzzy Sugeno</div>
-        <div class="fsc-desc">Output berupa fungsi linear/singleton dengan defuzzifikasi Weighted Average.</div>
-      </div>
-      <div class="fuzzy-selector-card cyan" onclick="showFuzzyMode('compare',null)">
-        <div class="fsc-icon">📈</div><div class="fsc-title">Perbandingan</div>
-        <div class="fsc-desc">Tampilkan grafik respons Mamdani vs Sugeno secara berdampingan.</div>
-      </div>
-    </div>
-  </div>
-
   <div id="fuzzy-mamdani" class="fuzzy-sub-page" style="display:none">
     <div class="page-head mb-16">
       <div>
-        <div class="fuzzy-breadcrumb"><span onclick="backToFuzzySelector()">Tipe Fuzzy</span> › Mamdani</div>
+        <div class="fuzzy-breadcrumb">Tipe Fuzzy › Mamdani</div>
         <div class="section-title">Fuzzy Mamdani</div><div class="section-sub">Analisis respons sistem (Real-time)</div>
       </div>
     </div>
@@ -212,7 +145,7 @@
   <div id="fuzzy-sugeno" class="fuzzy-sub-page" style="display:none">
     <div class="page-head mb-16">
       <div>
-        <div class="fuzzy-breadcrumb"><span onclick="backToFuzzySelector()">Tipe Fuzzy</span> › Sugeno</div>
+        <div class="fuzzy-breadcrumb">Tipe Fuzzy › Sugeno</div>
         <div class="section-title">Fuzzy Sugeno</div><div class="section-sub">Analisis respons sistem (Real-time)</div>
       </div>
     </div>
@@ -248,8 +181,18 @@
   <div id="fuzzy-compare" class="fuzzy-sub-page" style="display:none">
     <div class="page-head mb-16">
       <div>
-        <div class="fuzzy-breadcrumb"><span onclick="backToFuzzySelector()">Tipe Fuzzy</span> › Perbandingan</div>
+        <div class="fuzzy-breadcrumb">Tipe Fuzzy › Perbandingan</div>
         <div class="section-title">Mamdani vs Sugeno</div><div class="section-sub">Data komparasi diambil dari history telemetri</div>
+      </div>
+    </div>
+    <div class="grid2 mb-16">
+      <div class="card">
+        <div class="section-head mb-12"><div class="card-title" style="margin-bottom:0">Grafik Respons</div><span class="badge badge-blue">Mamdani</span></div>
+        <div class="chart-wrap"><canvas id="chartCmpM"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="section-head mb-12"><div class="card-title" style="margin-bottom:0">Grafik Respons</div><span class="badge badge-green">Sugeno</span></div>
+        <div class="chart-wrap"><canvas id="chartCmpS"></canvas></div>
       </div>
     </div>
     <div class="card">
@@ -258,10 +201,8 @@
         <table class="glass-table">
           <thead>
             <tr>
-              <th>Beban</th>
-              <th>Max Overshoot (M)</th><th>Max Overshoot (S)</th>
-              <th>Avg SSE (M)</th><th>Avg SSE (S)</th>
-              <th>Lebih Stabil</th>
+              <th>Beban</th><th>Max Overshoot (M)</th><th>Max Overshoot (S)</th>
+              <th>Avg SSE (M)</th><th>Avg SSE (S)</th><th>Lebih Stabil</th>
             </tr>
           </thead>
           <tbody id="metricCmpBody"></tbody>
@@ -305,7 +246,6 @@
 
   <div class="kontrol-grid">
     <div class="flex flex-col gap-16">
-      
       <div class="card">
         <div class="card-title mb-12">Set Setpoint RPM</div>
         <div class="slider-header"><span class="slider-lbl">Setpoint RPM</span><span class="slider-val" id="spRPMVal">100</span></div>
@@ -315,7 +255,7 @@
           <input type="number" class="glass-input flex-1" id="spRPMInput" value="100" min="0" max="300" oninput="syncInputUI()">
           <button class="btn btn-primary" onclick="confirmSetpoint()">OK</button>
         </div>
-        <div class="motor-hint mt-8 text-left" style="text-align:left;">Tekan <b>OK</b> untuk konfirmasi dan mengirim Setpoint.</div>
+        <div class="motor-hint mt-8 text-left">Tekan <b>OK</b> untuk konfirmasi dan mengirim Setpoint.</div>
       </div>
 
       <div class="card">
@@ -342,6 +282,23 @@
           <button class="level-btn" onclick="selectLevel('1',this)"><div class="lb-icon">⚡</div>Level 1<br><span class="lb-sub">Ringan</span></button>
           <button class="level-btn" onclick="selectLevel('2',this)"><div class="lb-icon">⚡⚡</div>Level 2<br><span class="lb-sub">Sedang</span></button>
           <button class="level-btn" onclick="selectLevel('3',this)"><div class="lb-icon">⚡⚡⚡</div>Level 3<br><span class="lb-sub">Berat</span></button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title mb-8">MQTT Publish Preview</div>
+        <div class="mqtt-preview">
+          <div class="mp-section-label">→ bldc/control/start / stop</div>
+          <div class="mp-line"><span class="mp-green" id="prevStart">Menunggu aksi...</span></div>
+          <div class="mp-divider"></div>
+          <div class="mp-section-label">→ bldc/control/setpoint</div>
+          <div class="mp-line"><span class="mp-green" id="prevSetpoint">0</span></div>
+          <div class="mp-divider"></div>
+          <div class="mp-section-label">→ bldc/control/fuzzy</div>
+          <div class="mp-line"><span class="mp-yellow" id="prevFuzzy">sugeno</span></div>
+          <div class="mp-divider"></div>
+          <div class="mp-section-label">→ bldc/control/level</div>
+          <div class="mp-line"><span class="mp-green" id="prevLevel">N</span></div>
         </div>
       </div>
 
