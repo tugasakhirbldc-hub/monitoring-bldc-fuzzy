@@ -24,16 +24,19 @@ let rpmMaxVal = 0;
 let rpmChart, gaugeChart, miniChart;
 let cMPage, cSPage, cCmpM, cCmpS, mfMChart, mfSChart;
 
-// Buffer osiloskop penahan 60 detik riwayat
-const liveHistoryRpm = Array(60).fill(0);
-const liveHistorySp  = Array(60).fill(0);
-const liveHistoryLbl = Array(60).fill('');
+// ==========================================
+// FIX: FITUR REKAMAN 60 DETIK (FREEZE-FRAME)
+// ==========================================
+let liveHistoryRpm = [];
+let liveHistorySp  = [];
+let liveHistoryLbl = [];
+let isFuzzyRecording = false;
+let fuzzyTimeCounter = 0;
 
 const rpmHistory  = Array(30).fill(0);
 const miniHistory = Array(15).fill(0);
 const allData = [];
 
-// ==========================================
 function safeSet(id, value) { const el=document.getElementById(id); if(el) el.textContent=value; }
 function safeHTML(id, html) { const el=document.getElementById(id); if(el) el.innerHTML=html; }
 function safeStyle(id, prop, val) { const el=document.getElementById(id); if(el) el.style[prop]=val; }
@@ -85,9 +88,6 @@ function showFuzzyMode(mode, event) {
   }
 }
 
-// ==========================================
-// RUMUS MF TRAPESIUM SESUAI ARDUINO (-100 s.d 100)
-// ==========================================
 function trimf(x, a, b, c) {
   if (x <= a || x >= c) return 0;
   if (x === b) return 1;
@@ -101,7 +101,6 @@ function makeMFChart(canvasId) {
   const labels = [];
   for (let i = -100; i <= 100; i += 5) labels.push(i);
 
-  // Kuncian bahu trapesium di ujung luar (-50 dan 50)
   const dNB = labels.map(x => (x <= -50) ? 1 : trimf(x, -100, -50, -20));
   const dNS = labels.map(x => trimf(x, -30, -10, 0));
   const dZE = labels.map(x => trimf(x, -5, 0, 5));
@@ -119,13 +118,18 @@ function makeMFChart(canvasId) {
   });
 }
 
+// ==========================================
+// FIX: Menghapus "suggestedMax" agar chart bisa Auto-Scale & Zoom Dinamis
+// ==========================================
 const chartDefaults = {
   responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
   plugins: { legend: { display: false } },
-  scales: { x: { display: false }, y: { min: 0, suggestedMax: 300, ticks:{color:'#4a5888', font:{size:10}}, grid:{color:'rgba(80,140,255,0.07)'} } }
+  scales: { 
+    x: { display: false }, 
+    y: { min: 0, ticks:{color:'#4a5888', font:{size:10}}, grid:{color:'rgba(80,140,255,0.07)'} } 
+  }
 };
 
-// Plugin teks di tengah Speedometer
 const gaugePlugin = {
   id: 'gaugeCenterText',
   afterDraw(chart) {
@@ -143,7 +147,7 @@ function initDashboardCharts() {
   const ctxRpm = document.getElementById('rpmChart');
   if (ctxRpm) rpmChart = new Chart(ctxRpm, { type: 'line', data: { labels: Array(30).fill(''), datasets: [{ label: 'RPM', data: rpmHistory, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4, pointRadius: 0 }, { label: 'Setpoint', data: Array(30).fill(0), borderColor: '#ef4444', borderDash: [5,5], borderWidth: 1.5, pointRadius: 0, fill: false }] }, options: chartDefaults });
   const ctxGauge = document.getElementById('gaugeChart');
-  if (ctxGauge) gaugeChart = new Chart(ctxGauge, { type: 'doughnut', data: { datasets: [{ data: [0, 300], backgroundColor: ['#3b82f6', 'rgba(255,255,255,0.05)'], borderWidth: 0, circumference: 180, rotation: 270 }] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 0 }, plugins: { tooltip: { enabled: false } } }, plugins: [gaugePlugin] });
+  if (ctxGauge) gaugeChart = new Chart(ctxGauge, { type: 'doughnut', data: { datasets: [{ data: [0, 450], backgroundColor: ['#3b82f6', 'rgba(255,255,255,0.05)'], borderWidth: 0, circumference: 180, rotation: 270 }] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 0 }, plugins: { tooltip: { enabled: false } } }, plugins: [gaugePlugin] });
 }
 
 function initMiniChart() {
@@ -170,6 +174,16 @@ function initCompareCharts() {
 }
 
 // ==========================================
+// FIX: Trigger untuk Memulai Ulang Rekaman 60 Detik
+// ==========================================
+function startFuzzyCapture() {
+  liveHistoryRpm = [];
+  liveHistorySp  = [];
+  liveHistoryLbl = [];
+  fuzzyTimeCounter = 0;
+  isFuzzyRecording = true;
+}
+
 function updatePreviewUI() {
   safeSet('prevSetpoint', currentSetpointVal);
   safeSet('prevFuzzy', activeFuzzyVal);
@@ -185,6 +199,9 @@ function confirmSetpoint() {
   safeSet('spRPMVal', val); safeSet('mSetpoint', val); safeSet('activeSetpoint', val + ' RPM');
   safeStyle('barSetpoint', 'width', Math.min((val / 450 * 100), 100) + '%');
   updatePreviewUI();
+  
+  startFuzzyCapture(); // <-- Mulai rekam respons baru!
+
   if (mqttClient && mqttClient.connected) mqttClient.publish(TOPICS.CTRL_SETPOINT, String(val), { qos: 1 });
 }
 
@@ -194,7 +211,11 @@ function selectFuzzyType(type) {
   if (type === 'mamdani') { optM.style.borderColor = 'rgba(59,130,246,0.45)'; optM.style.background = 'rgba(59,130,246,0.15)'; optS.style.borderColor = 'transparent'; optS.style.background = 'transparent'; chkM.style.opacity = '1'; chkS.style.opacity = '0'; document.getElementById('foNameM').style.color = '#7dd3fc'; document.getElementById('foNameS').style.color = 'var(--text-hi)'; } 
   else { optS.style.borderColor = 'rgba(16,185,129,0.45)'; optS.style.background = 'rgba(16,185,129,0.15)'; optM.style.borderColor = 'transparent'; optM.style.background = 'transparent'; chkS.style.opacity = '1'; chkM.style.opacity = '0'; document.getElementById('foNameS').style.color = '#6ee7b7'; document.getElementById('foNameM').style.color = 'var(--text-hi)'; }
   safeSet('dashFuzzyBadge', 'Fuzzy: ' + (type === 'mamdani' ? 'Mamdani' : 'Sugeno')); safeSet('activeFuzzy', type === 'mamdani' ? 'Mamdani' : 'Sugeno');
-  updatePreviewUI(); if (mqttClient && mqttClient.connected) mqttClient.publish(TOPICS.CTRL_FUZZY, type, { qos: 1 });
+  updatePreviewUI(); 
+  
+  startFuzzyCapture(); // <-- Mulai rekam respons baru jika fuzzy diganti!
+
+  if (mqttClient && mqttClient.connected) mqttClient.publish(TOPICS.CTRL_FUZZY, type, { qos: 1 });
 }
 
 function selectLevel(n, btn) {
@@ -207,6 +228,8 @@ function runMotor() {
   if (!mqttClient || !mqttClient.connected) return alert('MQTT Belum terhubung!');
   motorRunning = true; peakRPM = 0;
   rpmMinVal = Infinity; rpmMaxVal = 0; safeSet('rpmMin', '0'); safeSet('rpmMax', '0');
+
+  startFuzzyCapture(); // <-- Mulai rekam 60 detik awal sejak motor menyala!
 
   mqttClient.publish(TOPICS.CTRL_START, '1', { qos: 1 });
   safeSet('prevStart', '1 (Start)');
@@ -225,9 +248,6 @@ function confirmStop() {
   safeHTML('motorStatusText', '<span class="dot red"></span>Stopped');
 }
 
-// ==========================================
-// FUNGSI RESET TELEMETRY
-// ==========================================
 function resetTelemetry() {
   if (!confirm('Hapus seluruh riwayat data Telemetry?')) return;
   allData.length = 0;
@@ -288,45 +308,68 @@ function processIncomingData(rpm, pwm, error, level) {
   rpmHistory.push(rpm); rpmHistory.shift();
   miniHistory.push(rpm); miniHistory.shift();
 
-  // Memasukkan data ke buffer 60 detik (Fuzzy Live)
-  liveHistoryRpm.push(rpm); liveHistoryRpm.shift();
-  liveHistorySp.push(currentSetpointVal); liveHistorySp.shift();
+  // ==========================================
+  // FIX: KALKULASI DYNAMIC ZOOM Y-AXIS (Max)
+  // ==========================================
+  const maxNilaiData = Math.max(rpm, currentSetpointVal);
+  const dynamicYLimit = maxNilaiData === 0 ? 100 : Math.ceil(maxNilaiData * 1.15); // +15% Headroom (Ruang Kosong)
 
-  if (cMPage) { cMPage.data.datasets[0].data = liveHistoryRpm; cMPage.data.datasets[1].data = liveHistorySp; cMPage.update('none'); }
-  if (cSPage) { cSPage.data.datasets[0].data = liveHistoryRpm; cSPage.data.datasets[1].data = liveHistorySp; cSPage.update('none'); }
-  if (cCmpM)  { cCmpM.data.datasets[0].data = liveHistoryRpm; cCmpM.data.datasets[1].data = liveHistorySp; cCmpM.update('none'); }
-  if (cCmpS)  { cCmpS.data.datasets[0].data = liveHistoryRpm; cCmpS.data.datasets[1].data = liveHistorySp; cCmpS.update('none'); }
+  if (rpmChart) { 
+    rpmChart.options.scales.y.max = dynamicYLimit; // Update sumbu Y Dinamis
+    rpmChart.data.datasets[0].data = rpmHistory; 
+    rpmChart.data.datasets[1].data = Array(30).fill(currentSetpointVal); 
+    rpmChart.update('none'); 
+  }
+  if (miniChart) { 
+    miniChart.options.scales.y.max = dynamicYLimit; // Update sumbu Y Dinamis
+    miniChart.update('none'); 
+  }
 
-  if (rpmChart) { rpmChart.data.datasets[0].data = rpmHistory; rpmChart.data.datasets[1].data = Array(30).fill(currentSetpointVal); rpmChart.update('none'); }
-  if (miniChart) miniChart.update('none');
+  // ==========================================
+  // FIX: REKAMAN BEKU (FREEZE) SETELAH 60 DETIK
+  // ==========================================
+  if (isFuzzyRecording) {
+    liveHistoryRpm.push(rpm);
+    liveHistorySp.push(currentSetpointVal);
+    liveHistoryLbl.push(fuzzyTimeCounter + 's');
+    fuzzyTimeCounter++;
+
+    // Jika sudah mencapai data ke-60 detik, HENTIKAN REKAMAN (FREEZE)!
+    if (fuzzyTimeCounter >= 60) {
+      isFuzzyRecording = false; 
+    }
+
+    if (cMPage) { cMPage.options.scales.y.max = dynamicYLimit; cMPage.data.labels = liveHistoryLbl; cMPage.data.datasets[0].data = liveHistoryRpm; cMPage.data.datasets[1].data = liveHistorySp; cMPage.update('none'); }
+    if (cSPage) { cSPage.options.scales.y.max = dynamicYLimit; cSPage.data.labels = liveHistoryLbl; cSPage.data.datasets[0].data = liveHistoryRpm; cSPage.data.datasets[1].data = liveHistorySp; cSPage.update('none'); }
+    if (cCmpM)  { cCmpM.options.scales.y.max = dynamicYLimit; cCmpM.data.labels = liveHistoryLbl; cCmpM.data.datasets[0].data = liveHistoryRpm; cCmpM.data.datasets[1].data = liveHistorySp; cCmpM.update('none'); }
+    if (cCmpS)  { cCmpS.options.scales.y.max = dynamicYLimit; cCmpS.data.labels = liveHistoryLbl; cCmpS.data.datasets[0].data = liveHistoryRpm; cCmpS.data.datasets[1].data = liveHistorySp; cCmpS.update('none'); }
+  }
 
   logTelemetry(rpm, pwm, error, overshoot, activeFuzzyVal, level);
 }
 
 function logTelemetry(rpm, pwm, error, overshoot, activeFuzzyVal, level) {
-  const timeStr = new Date().toLocaleTimeString('id-ID'); // Waktu jam lokal aktual
+  const timeStr = new Date().toLocaleTimeString('id-ID'); 
   
   allData.unshift({ 
     time: timeStr, 
     rpm: rpm.toFixed(1), 
     sp: currentSetpointVal, 
     pwm: pwm.toFixed(0), 
-    err: error.toFixed(1),           // FIX: menggunakan parameter 'error'
-    os: overshoot.toFixed(1),        // FIX: menggunakan parameter 'overshoot'
-    type: activeFuzzyVal === 'mamdani' ? 'Mamdani' : 'Sugeno', // FIX: menggunakan parameter 'activeFuzzyVal'
+    err: error.toFixed(1),           
+    os: overshoot.toFixed(1),        
+    type: activeFuzzyVal === 'mamdani' ? 'Mamdani' : 'Sugeno', 
     beban: level 
   });
   
-  // Throttle render tabel agar browser laptop/HP tidak lag saat data ribuan
   if (!window.tableRenderPending) {
     window.tableRenderPending = true;
     setTimeout(() => {
       updateTelemetryUI();
       window.tableRenderPending = false;
-    }, 1000); // UI tabel di-update setiap 1 detik
+    }, 1000); 
   }
 }
-
 
 function updateTelemetryUI() {
   safeSet('statTotal', allData.length); if (allData.length === 0) return;
@@ -345,10 +388,33 @@ function updateFuzzyMetricTables() {
     const mRows = allData.filter(d => d.type === 'Mamdani' && String(d.beban) === lv);
     const sRows = allData.filter(d => d.type === 'Sugeno' && String(d.beban) === lv);
     const getStats = (arr) => { if(arr.length === 0) return { os: '-', sse: '-' }; const maxOs = Math.max(...arr.map(d => parseFloat(d.os))).toFixed(1); const avgSse = (arr.reduce((sum, d) => sum + Math.abs(parseFloat(d.err)), 0) / arr.length).toFixed(1); return { os: maxOs + '%', sse: avgSse }; };
-    const sM = getStats(mRows), sS = getStats(sRows);
+    
+    const sM = getStats(mRows);
+    const sS = getStats(sRows);
+    
     mHTML += `<tr><td>Level ${lv}</td><td>—</td><td>${sM.os}</td><td>${sM.sse}</td><td><span class="badge badge-blue">Mamdani</span></td></tr>`;
     sHTML += `<tr><td>Level ${lv}</td><td>—</td><td>${sS.os}</td><td>${sS.sse}</td><td><span class="badge badge-green">Sugeno</span></td></tr>`;
-    let winner = '—'; if(mRows.length && sRows.length) winner = parseFloat(sS.sse) < parseFloat(sM.sse) ? 'Sugeno' : 'Mamdani';
+    
+    let winner = '—'; 
+    if(mRows.length && sRows.length) {
+      const valOsM = parseFloat(sM.os) || 0;
+      const valSseM = parseFloat(sM.sse) || 0;
+      const valOsS = parseFloat(sS.os) || 0;
+      const valSseS = parseFloat(sS.sse) || 0;
+      
+      // Rumus stabilitas berdasarkan kombinasi Overshoot + Error
+      const skorMamdani = valOsM + valSseM;
+      const skorSugeno = valOsS + valSseS;
+
+      if (skorSugeno < skorMamdani) {
+        winner = 'Sugeno';
+      } else if (skorMamdani < skorSugeno) {
+        winner = 'Mamdani';
+      } else {
+        winner = 'Seimbang';
+      }
+    }
+    
     cmpHTML += `<tr><td>Level ${lv}</td><td>${sM.os}</td><td>${sS.os}</td><td>${sM.sse}</td><td>${sS.sse}</td><td><span class="badge badge-gold">${winner}</span></td></tr>`;
   });
   safeHTML('metricMBody', mHTML); safeHTML('metricSBody', sHTML); safeHTML('metricCmpBody', cmpHTML);
@@ -363,4 +429,19 @@ function exportCSV() {
 window.onload = () => { initDashboardCharts(); selectFuzzyType('sugeno'); };
 document.addEventListener('click', () => document.querySelectorAll('.sub-menu').forEach(m => m.classList.remove('open')));
 
-window.showPage = showPage; window.toggleSubMenu = toggleSubMenu; window.showFuzzyMode = showFuzzyMode; window.syncSliderUI = syncSliderUI; window.syncInputUI = syncInputUI; window.confirmSetpoint = confirmSetpoint; window.selectFuzzyType = selectFuzzyType; window.selectLevel = selectLevel; window.runMotor = runMotor; window.askStop = askStop; window.closeConfirm = closeConfirm; window.confirmStop = confirmStop; window.resetTelemetry = resetTelemetry; window.connectMQTT = connectMQTT; window.disconnectMQTT = disconnectMQTT; window.exportCSV = exportCSV;
+window.showPage = showPage; 
+window.toggleSubMenu = toggleSubMenu; 
+window.showFuzzyMode = showFuzzyMode; 
+window.syncSliderUI = syncSliderUI; 
+window.syncInputUI = syncInputUI; 
+window.confirmSetpoint = confirmSetpoint; 
+window.selectFuzzyType = selectFuzzyType; 
+window.selectLevel = selectLevel; 
+window.runMotor = runMotor; 
+window.askStop = askStop; 
+window.closeConfirm = closeConfirm; 
+window.confirmStop = confirmStop; 
+window.resetTelemetry = resetTelemetry; 
+window.connectMQTT = connectMQTT; 
+window.disconnectMQTT = disconnectMQTT; 
+window.exportCSV = exportCSV;
