@@ -92,8 +92,27 @@ const chartDefaults = {
 function initDashboardCharts() {
   const ctxRpm = document.getElementById('rpmChart');
   if (ctxRpm) rpmChart = new Chart(ctxRpm, { type: 'line', data: { labels: Array(30).fill(''), datasets: [{ label: 'RPM', data: rpmHistory, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4, pointRadius: 0 }, { label: 'Setpoint', data: setpointHist, borderColor: '#ef4444', borderDash: [5,5], borderWidth: 1.5, pointRadius: 0, fill: false }] }, options: chartDefaults });
+  
   const ctxGauge = document.getElementById('gaugeChart');
-  if (ctxGauge) gaugeChart = new Chart(ctxGauge, { type: 'doughnut', data: { datasets: [{ data: [0, 300], backgroundColor: ['#3b82f6', 'rgba(255,255,255,0.05)'], borderWidth: 0, circumference: 180, rotation: 270 }] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 0 }, plugins: { tooltip: { enabled: false } } } });
+  if (ctxGauge) {
+    gaugeChart = new Chart(ctxGauge, { 
+      type: 'doughnut', 
+      data: { datasets: [{ data: [0, 300], backgroundColor: ['#3b82f6', 'rgba(255,255,255,0.05)'], borderWidth: 0, circumference: 180, rotation: 270 }] }, 
+      options: { responsive: true, maintainAspectRatio: false, animation: { duration: 0 }, plugins: { tooltip: { enabled: false } } },
+      // PLUGIN INI YANG MEMBUAT ANGKA MUNCUL DI TENGAH GAUGE
+      plugins: [{
+        id: 'gaugeLabel',
+        afterDraw(chart) {
+          const ctx = chart.ctx; ctx.save();
+          ctx.font = '700 36px Rajdhani'; ctx.fillStyle = '#93c5fd'; ctx.textAlign = 'center';
+          ctx.fillText(document.getElementById('mRPM')?.textContent || '0', chart.width / 2, chart.height / 1.25);
+          ctx.font = '13px Rajdhani'; ctx.fillStyle = '#94a3c8';
+          ctx.fillText('RPM', chart.width / 2, chart.height / 1.10);
+          ctx.restore();
+        }
+      }]
+    });
+  }
 }
 
 function initMiniChart() {
