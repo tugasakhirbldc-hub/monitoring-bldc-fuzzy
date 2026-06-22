@@ -16,6 +16,9 @@ let activeLevelVal     = 'N';
 let activeFuzzyVal     = 'sugeno'; // Kuncian awal
 let currentSetpointVal = 0;
 let peakRPM            = 0;
+let startTime          = 0;
+let sysRiseTime        = 0;
+let isRising           = false;
 let msgCount           = 0;
 
 let rpmMinVal = Infinity;
@@ -34,6 +37,7 @@ let isFuzzyRecording = false;
 let fuzzyTimeCounter = 0;
 
 const rpmHistory  = Array(30).fill(0);
+const rpmTimeLabels = Array(30).fill('');
 const miniHistory = Array(15).fill(0);
 const allData = [];
 
@@ -125,7 +129,7 @@ const chartDefaults = {
   responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
   plugins: { legend: { display: false } },
   scales: { 
-    x: { display: false }, 
+    x: { display: true, ticks: { color: '#4a5888', font: { size: 9 }, maxTicksLimit: 7 }, grid: { display: false } }, 
     y: { min: 0, ticks:{color:'#4a5888', font:{size:10}}, grid:{color:'rgba(80,140,255,0.07)'} } 
   }
 };
@@ -226,7 +230,7 @@ function selectLevel(n, btn) {
 
 function runMotor() {
   if (!mqttClient || !mqttClient.connected) return alert('MQTT Belum terhubung!');
-  motorRunning = true; peakRPM = 0;
+  motorRunning = true; peakRPM = 0; startTime = Date.now(); sysRiseTime = 0; isRising = true;
   rpmMinVal = Infinity; rpmMaxVal = 0; safeSet('rpmMin', '0'); safeSet('rpmMax', '0');
 
   startFuzzyCapture(); // <-- Mulai rekam 60 detik awal sejak motor menyala!
@@ -299,14 +303,48 @@ function processIncomingData(rpm, pwm, error, level) {
   let pwmPct = ((pwm - 103) / (255 - 103)) * 100;
   safeStyle('barPWM', 'width', Math.max(0, Math.min(pwmPct, 100)) + '%');
 
-  safeSet('mError', error.toFixed(1)); safeStyle('barError', 'width', Math.min(Math.abs(error), 100) + '%');
-  safeSet('overshootVal', overshoot.toFixed(1)); safeSet('miniOvershootVal', overshoot.toFixed(1));
+  // 1. Logika Rise Time Real-time
+  if (isRising && currentSetpointVal > 0) {
+    if (rpm >= currentSetpointVal * 0.90) { 
+      sysRiseTime = (Date.now() - startTime) / 1000;
+      isRising = false;
+    } else {
+      sysRiseTime = (Date.now() - startTime) / 1000; 
+    }
+  }
+  safeSet('gaugeSetpointVal', currentSetpointVal);
+  safeSet('gaugeRiseTimeVal', sysRiseTime.toFixed(1) + ' s');
+
+  // 2. Logika Steady State Error (SSE) Nyata
+  let steadyStateError = error; 
+  if (peakRPM >= currentSetpointVal * 0.90 && currentSetpointVal > 0 && rpmHistory.length >= 5) {
+    const last5 = rpmHistory.slice(-5);
+    const avgRpm = last5.reduce((a, b) => a + b, 0) / 5;
+    steadyStateError = currentSetpointVal - avgRpm; 
+  }
+  
+  // 3. Update UI Error (Memakai SSE Nyata)
+  safeSet('mError', Math.abs(steadyStateError).toFixed(1));
+  safeStyle('barError', 'width', Math.min(Math.abs(steadyStateError), 100) + '%');
+
+  // 4. Update UI Overshoot (BAGIAN INI TETAP DIPERTAHANKAN)
+  safeSet('overshootVal', overshoot.toFixed(1)); 
+  safeSet('miniOvershootVal', overshoot.toFixed(1));
   safeStyle('barOvershoot', 'width', Math.min(overshoot, 100) + '%');
 
   if (gaugeChart) { const val = Math.min(rpm, 450); gaugeChart.data.datasets[0].data = [val, 450 - val]; gaugeChart.update(); }
 
   rpmHistory.push(rpm); rpmHistory.shift();
-  miniHistory.push(rpm); miniHistory.shift();
+  rpmTimeLabels.push(new Date().toLocaleTimeString('id-ID')); rpmTimeLabels.shift(); // <-- Waktu masuk
+
+  // Update chart
+  if (rpmChart) { 
+    rpmChart.data.labels = rpmTimeLabels; // <-- Pasang waktu ke sumbu X
+    rpmChart.options.scales.y.max = dynamicYLimit; 
+    rpmChart.data.datasets[0].data = rpmHistory; 
+    rpmChart.data.datasets[1].data = Array(30).fill(currentSetpointVal); 
+    rpmChart.update('none'); 
+  }
 
   // ==========================================
   // FIX: KALKULASI DYNAMIC ZOOM Y-AXIS (Max)

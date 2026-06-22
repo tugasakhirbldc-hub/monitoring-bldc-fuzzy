@@ -831,6 +831,14 @@ body::selection {
   .level-btns   { flex-direction: column; }
   .gauge-wrap   { height: 180px; }
   .tt-group { flex-wrap: wrap; }
+  /* Memaksa 5 kartu metrik menjadi 2 kolom rapi di HP */
+  .grid4 { 
+    display: grid !important; 
+    grid-template-columns: 1fr 1fr !important; 
+    gap: 8px !important; 
+  }
+  .metric-card { padding: 12px 10px; }
+  .mc-value { font-size: clamp(18px, 5vw, 24px) !important; }
 }
 
 @media (max-width: 480px) {

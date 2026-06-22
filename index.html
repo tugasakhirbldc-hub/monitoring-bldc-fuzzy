@@ -84,7 +84,20 @@
       </div>
       <div class="chart-wrap"><canvas id="rpmChart"></canvas></div>
     </div>
-    <div class="card dash-gauge"><div class="card-title">Speedometer</div><div class="gauge-wrap"><canvas id="gaugeChart"></canvas></div></div>
+    <div class="card dash-gauge">
+      <div class="card-title">Speedometer</div>
+      <div class="gauge-wrap" style="height: 190px;"><canvas id="gaugeChart"></canvas></div>
+      <div class="flex" style="margin-top: 15px; border-top: 1px solid var(--border); padding-top: 12px;">
+        <div style="flex:1; text-align:center; border-right:1px solid var(--border);">
+          <div style="font-size:10px; color:var(--text-lo); margin-bottom:2px;">SETPOINT</div>
+          <div id="gaugeSetpointVal" style="font-family:'Rajdhani',sans-serif; font-size:18px; font-weight:700; color:#06b6d4;">0</div>
+        </div>
+        <div style="flex:1; text-align:center;">
+          <div style="font-size:10px; color:var(--text-lo); margin-bottom:2px;">RISE TIME</div>
+          <div id="gaugeRiseTimeVal" style="font-family:'Rajdhani',sans-serif; font-size:18px; font-weight:700; color:#10b981;">0.0 s</div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="grid2 mb-16">
@@ -269,10 +282,10 @@
       <div class="card">
         <div class="card-title mb-12">Kondisi Pembebanan</div>
         <div class="level-btns">
-          <button class="level-btn active" onclick="selectLevel('N', this)"><div class="lb-icon">⏸</div>Netral<br><span class="lb-sub">0 Beban</span></button>
-          <button class="level-btn" onclick="selectLevel('1', this)"><div class="lb-icon">⚡</div>Level 1<br><span class="lb-sub">Ringan</span></button>
-          <button class="level-btn" onclick="selectLevel('2', this)"><div class="lb-icon">⚡⚡</div>Level 2<br><span class="lb-sub">Sedang</span></button>
-          <button class="level-btn" onclick="selectLevel('3', this)"><div class="lb-icon">⚡⚡⚡</div>Level 3<br><span class="lb-sub">Berat</span></button>
+          <button class="level-btn active" onclick="selectLevel('1', this)"><div class="lb-icon">⚡</div>Load 1<br><span class="lb-sub">25%</span></button>
+          <button class="level-btn" onclick="selectLevel('2', this)"><div class="lb-icon">⚡⚡</div>Load 2<br><span class="lb-sub">50%</span></button>
+          <button class="level-btn" onclick="selectLevel('3', this)"><div class="lb-icon">⚡⚡⚡</div>Load 3<br><span class="lb-sub">75%</span></button>
+          <button class="level-btn" onclick="selectLevel('N', this)"><div class="lb-icon">⏸</div>0 Load<br><span class="lb-sub">0%</span></button>
         </div>
       </div>
 
