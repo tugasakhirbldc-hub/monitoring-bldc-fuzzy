@@ -13,13 +13,15 @@ const TOPICS = {
 let mqttClient         = null;
 let motorRunning       = false;
 let activeLevelVal     = 'N';
-let activeFuzzyVal     = 'sugeno'; // Kuncian awal
+let activeFuzzyVal     = 'sugeno'; 
 let currentSetpointVal = 0;
 let peakRPM            = 0;
+let msgCount           = 0;
+
+// Variabel Real-Time (Rise Time & SSE)
 let startTime          = 0;
 let sysRiseTime        = 0;
 let isRising           = false;
-let msgCount           = 0;
 
 let rpmMinVal = Infinity;
 let rpmMaxVal = 0;
@@ -27,17 +29,16 @@ let rpmMaxVal = 0;
 let rpmChart, gaugeChart, miniChart;
 let cMPage, cSPage, cCmpM, cCmpS, mfMChart, mfSChart;
 
-// ==========================================
-// FIX: FITUR REKAMAN 60 DETIK (FREEZE-FRAME)
-// ==========================================
+// Variabel Perekam 60-Detik Fuzzy
 let liveHistoryRpm = [];
 let liveHistorySp  = [];
 let liveHistoryLbl = [];
 let isFuzzyRecording = false;
 let fuzzyTimeCounter = 0;
 
+// Array History Grafik (DENGAN PENAMPUNG WAKTU)
 const rpmHistory  = Array(30).fill(0);
-const rpmTimeLabels = Array(30).fill('');
+const rpmTimeLabels = Array(30).fill(''); // <-- Ini yang menyebabkan crash sebelumnya jika hilang!
 const miniHistory = Array(15).fill(0);
 const allData = [];
 
@@ -57,7 +58,6 @@ function showPage(pageKey, navEl, event) {
   document.querySelectorAll('.sub-menu').forEach(m => m.classList.remove('open'));
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + pageKey).classList.add('active');
-  
   document.querySelectorAll('.topbar-nav .nav-item').forEach(n => n.classList.remove('active', 'sub-open'));
   if (navEl) navEl.classList.add('active');
   if (pageKey === 'kontrol' && !miniChart) initMiniChart();
@@ -72,11 +72,9 @@ function showFuzzyMode(mode, event) {
   if (event) event.stopPropagation();
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-fuzzy').classList.add('active');
-  
   document.querySelectorAll('.topbar-nav .nav-item').forEach(n => n.classList.remove('active', 'sub-open'));
   document.getElementById('nav-fuzzy').classList.add('active');
   document.getElementById('fuzzy-sub').classList.remove('open');
-
   document.querySelectorAll('.fuzzy-sub-page').forEach(p => p.style.display = 'none');
   
   if (mode === 'mamdani') {
@@ -122,16 +120,11 @@ function makeMFChart(canvasId) {
   });
 }
 
-// ==========================================
-// FIX: Menghapus "suggestedMax" agar chart bisa Auto-Scale & Zoom Dinamis
-// ==========================================
+// Opsi default chart tanpa waktu X (untuk mini chart dan compare)
 const chartDefaults = {
   responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
   plugins: { legend: { display: false } },
-  scales: { 
-    x: { display: true, ticks: { color: '#4a5888', font: { size: 9 }, maxTicksLimit: 7 }, grid: { display: false } }, 
-    y: { min: 0, ticks:{color:'#4a5888', font:{size:10}}, grid:{color:'rgba(80,140,255,0.07)'} } 
-  }
+  scales: { x: { display: false }, y: { min: 0, ticks:{color:'#4a5888', font:{size:10}}, grid:{color:'rgba(80,140,255,0.07)'} } }
 };
 
 const gaugePlugin = {
@@ -149,7 +142,26 @@ const gaugePlugin = {
 
 function initDashboardCharts() {
   const ctxRpm = document.getElementById('rpmChart');
-  if (ctxRpm) rpmChart = new Chart(ctxRpm, { type: 'line', data: { labels: Array(30).fill(''), datasets: [{ label: 'RPM', data: rpmHistory, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4, pointRadius: 0 }, { label: 'Setpoint', data: Array(30).fill(0), borderColor: '#ef4444', borderDash: [5,5], borderWidth: 1.5, pointRadius: 0, fill: false }] }, options: chartDefaults });
+  if (ctxRpm) {
+    rpmChart = new Chart(ctxRpm, { 
+      type: 'line', 
+      data: { 
+        labels: rpmTimeLabels, // Label X-Axis dengan Jam Aktif
+        datasets: [
+          { label: 'RPM', data: rpmHistory, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4, pointRadius: 0 }, 
+          { label: 'Setpoint', data: Array(30).fill(0), borderColor: '#ef4444', borderDash: [5,5], borderWidth: 1.5, pointRadius: 0, fill: false }
+        ] 
+      }, 
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
+        plugins: { legend: { display: false } },
+        scales: { 
+          x: { display: true, ticks: { color: '#4a5888', font: { size: 9 }, maxTicksLimit: 7 }, grid: { display: false } }, 
+          y: { min: 0, ticks:{color:'#4a5888', font:{size:10}}, grid:{color:'rgba(80,140,255,0.07)'} } 
+        }
+      }
+    });
+  }
   const ctxGauge = document.getElementById('gaugeChart');
   if (ctxGauge) gaugeChart = new Chart(ctxGauge, { type: 'doughnut', data: { datasets: [{ data: [0, 450], backgroundColor: ['#3b82f6', 'rgba(255,255,255,0.05)'], borderWidth: 0, circumference: 180, rotation: 270 }] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 0 }, plugins: { tooltip: { enabled: false } } }, plugins: [gaugePlugin] });
 }
@@ -177,21 +189,13 @@ function initCompareCharts() {
   cCmpS = new Chart(ctxS, { type: 'line', data: { labels: liveHistoryLbl, datasets: [{ label:'RPM', data: liveHistoryRpm, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4, pointRadius: 0 }, { label:'Setpoint', data: liveHistorySp, borderColor: '#ef4444', borderDash: [5,5], pointRadius: 0, fill: false }] }, options: chartDefaults });
 }
 
-// ==========================================
-// FIX: Trigger untuk Memulai Ulang Rekaman 60 Detik
-// ==========================================
 function startFuzzyCapture() {
-  liveHistoryRpm = [];
-  liveHistorySp  = [];
-  liveHistoryLbl = [];
-  fuzzyTimeCounter = 0;
-  isFuzzyRecording = true;
+  liveHistoryRpm = []; liveHistorySp  = []; liveHistoryLbl = [];
+  fuzzyTimeCounter = 0; isFuzzyRecording = true;
 }
 
 function updatePreviewUI() {
-  safeSet('prevSetpoint', currentSetpointVal);
-  safeSet('prevFuzzy', activeFuzzyVal);
-  safeSet('prevLevel', activeLevelVal);
+  safeSet('prevSetpoint', currentSetpointVal); safeSet('prevFuzzy', activeFuzzyVal); safeSet('prevLevel', activeLevelVal);
 }
 
 function syncSliderUI() { document.getElementById('spRPMInput').value = document.getElementById('spRPM').value; }
@@ -202,9 +206,9 @@ function confirmSetpoint() {
   currentSetpointVal = val; peakRPM = 0;
   safeSet('spRPMVal', val); safeSet('mSetpoint', val); safeSet('activeSetpoint', val + ' RPM');
   safeStyle('barSetpoint', 'width', Math.min((val / 450 * 100), 100) + '%');
-  updatePreviewUI();
   
-  startFuzzyCapture(); // <-- Mulai rekam respons baru!
+  updatePreviewUI();
+  startFuzzyCapture();
 
   if (mqttClient && mqttClient.connected) mqttClient.publish(TOPICS.CTRL_SETPOINT, String(val), { qos: 1 });
 }
@@ -215,9 +219,9 @@ function selectFuzzyType(type) {
   if (type === 'mamdani') { optM.style.borderColor = 'rgba(59,130,246,0.45)'; optM.style.background = 'rgba(59,130,246,0.15)'; optS.style.borderColor = 'transparent'; optS.style.background = 'transparent'; chkM.style.opacity = '1'; chkS.style.opacity = '0'; document.getElementById('foNameM').style.color = '#7dd3fc'; document.getElementById('foNameS').style.color = 'var(--text-hi)'; } 
   else { optS.style.borderColor = 'rgba(16,185,129,0.45)'; optS.style.background = 'rgba(16,185,129,0.15)'; optM.style.borderColor = 'transparent'; optM.style.background = 'transparent'; chkS.style.opacity = '1'; chkM.style.opacity = '0'; document.getElementById('foNameS').style.color = '#6ee7b7'; document.getElementById('foNameM').style.color = 'var(--text-hi)'; }
   safeSet('dashFuzzyBadge', 'Fuzzy: ' + (type === 'mamdani' ? 'Mamdani' : 'Sugeno')); safeSet('activeFuzzy', type === 'mamdani' ? 'Mamdani' : 'Sugeno');
-  updatePreviewUI(); 
   
-  startFuzzyCapture(); // <-- Mulai rekam respons baru jika fuzzy diganti!
+  updatePreviewUI(); 
+  startFuzzyCapture();
 
   if (mqttClient && mqttClient.connected) mqttClient.publish(TOPICS.CTRL_FUZZY, type, { qos: 1 });
 }
@@ -230,10 +234,14 @@ function selectLevel(n, btn) {
 
 function runMotor() {
   if (!mqttClient || !mqttClient.connected) return alert('MQTT Belum terhubung!');
-  motorRunning = true; peakRPM = 0; startTime = Date.now(); sysRiseTime = 0; isRising = true;
+  motorRunning = true; peakRPM = 0;
   rpmMinVal = Infinity; rpmMaxVal = 0; safeSet('rpmMin', '0'); safeSet('rpmMax', '0');
 
-  startFuzzyCapture(); // <-- Mulai rekam 60 detik awal sejak motor menyala!
+  startTime = Date.now();
+  sysRiseTime = 0;
+  isRising = true;
+
+  startFuzzyCapture();
 
   mqttClient.publish(TOPICS.CTRL_START, '1', { qos: 1 });
   safeSet('prevStart', '1 (Start)');
@@ -303,78 +311,64 @@ function processIncomingData(rpm, pwm, error, level) {
   let pwmPct = ((pwm - 103) / (255 - 103)) * 100;
   safeStyle('barPWM', 'width', Math.max(0, Math.min(pwmPct, 100)) + '%');
 
-  // 1. Logika Rise Time Real-time
+  // Memasukkan array grafik utama (DENGAN TIMESTAMP X-AXIS)
+  rpmHistory.push(rpm); rpmHistory.shift();
+  rpmTimeLabels.push(new Date().toLocaleTimeString('id-ID')); rpmTimeLabels.shift();
+  miniHistory.push(rpm); miniHistory.shift();
+
+  // Logika Rise Time Real-time
   if (isRising && currentSetpointVal > 0) {
-    if (rpm >= currentSetpointVal * 0.90) { 
+    if (rpm >= currentSetpointVal * 0.90) {
       sysRiseTime = (Date.now() - startTime) / 1000;
       isRising = false;
     } else {
-      sysRiseTime = (Date.now() - startTime) / 1000; 
+      sysRiseTime = (Date.now() - startTime) / 1000;
     }
   }
   safeSet('gaugeSetpointVal', currentSetpointVal);
   safeSet('gaugeRiseTimeVal', sysRiseTime.toFixed(1) + ' s');
 
-  // 2. Logika Steady State Error (SSE) Nyata
-  let steadyStateError = error; 
+  // Logika Steady State Error (SSE) Nyata
+  let steadyStateError = error;
   if (peakRPM >= currentSetpointVal * 0.90 && currentSetpointVal > 0 && rpmHistory.length >= 5) {
     const last5 = rpmHistory.slice(-5);
     const avgRpm = last5.reduce((a, b) => a + b, 0) / 5;
-    steadyStateError = currentSetpointVal - avgRpm; 
+    steadyStateError = currentSetpointVal - avgRpm;
   }
-  
-  // 3. Update UI Error (Memakai SSE Nyata)
+
   safeSet('mError', Math.abs(steadyStateError).toFixed(1));
   safeStyle('barError', 'width', Math.min(Math.abs(steadyStateError), 100) + '%');
 
-  // 4. Update UI Overshoot (BAGIAN INI TETAP DIPERTAHANKAN)
-  safeSet('overshootVal', overshoot.toFixed(1)); 
-  safeSet('miniOvershootVal', overshoot.toFixed(1));
+  safeSet('overshootVal', overshoot.toFixed(1)); safeSet('miniOvershootVal', overshoot.toFixed(1));
   safeStyle('barOvershoot', 'width', Math.min(overshoot, 100) + '%');
 
   if (gaugeChart) { const val = Math.min(rpm, 450); gaugeChart.data.datasets[0].data = [val, 450 - val]; gaugeChart.update(); }
 
-  rpmHistory.push(rpm); rpmHistory.shift();
-  rpmTimeLabels.push(new Date().toLocaleTimeString('id-ID')); rpmTimeLabels.shift(); // <-- Waktu masuk
-
-  // Update chart
-  if (rpmChart) { 
-    rpmChart.data.labels = rpmTimeLabels; // <-- Pasang waktu ke sumbu X
-    rpmChart.options.scales.y.max = dynamicYLimit; 
-    rpmChart.data.datasets[0].data = rpmHistory; 
-    rpmChart.data.datasets[1].data = Array(30).fill(currentSetpointVal); 
-    rpmChart.update('none'); 
-  }
-
-  // ==========================================
-  // FIX: KALKULASI DYNAMIC ZOOM Y-AXIS (Max)
-  // ==========================================
+  // Auto-Scale Zoom Y-Axis
   const maxNilaiData = Math.max(rpm, currentSetpointVal);
-  const dynamicYLimit = maxNilaiData === 0 ? 100 : Math.ceil(maxNilaiData * 1.15); // +15% Headroom (Ruang Kosong)
+  const dynamicYLimit = maxNilaiData === 0 ? 100 : Math.ceil(maxNilaiData * 1.15);
 
-  if (rpmChart) { 
-    rpmChart.options.scales.y.max = dynamicYLimit; // Update sumbu Y Dinamis
-    rpmChart.data.datasets[0].data = rpmHistory; 
-    rpmChart.data.datasets[1].data = Array(30).fill(currentSetpointVal); 
-    rpmChart.update('none'); 
+  if (rpmChart) {
+    rpmChart.options.scales.y.max = dynamicYLimit;
+    rpmChart.data.labels = rpmTimeLabels; // Sumbu X mendapat waktu
+    rpmChart.data.datasets[0].data = rpmHistory;
+    rpmChart.data.datasets[1].data = Array(30).fill(currentSetpointVal);
+    rpmChart.update('none');
   }
-  if (miniChart) { 
-    miniChart.options.scales.y.max = dynamicYLimit; // Update sumbu Y Dinamis
-    miniChart.update('none'); 
+  if (miniChart) {
+    miniChart.options.scales.y.max = dynamicYLimit;
+    miniChart.update('none');
   }
 
-  // ==========================================
-  // FIX: REKAMAN BEKU (FREEZE) SETELAH 60 DETIK
-  // ==========================================
+  // Freeze 60 Detik untuk Grafik Fuzzy
   if (isFuzzyRecording) {
     liveHistoryRpm.push(rpm);
     liveHistorySp.push(currentSetpointVal);
     liveHistoryLbl.push(fuzzyTimeCounter + 's');
     fuzzyTimeCounter++;
 
-    // Jika sudah mencapai data ke-60 detik, HENTIKAN REKAMAN (FREEZE)!
     if (fuzzyTimeCounter >= 60) {
-      isFuzzyRecording = false; 
+      isFuzzyRecording = false; // Membekukan chart setelah 60 detik
     }
 
     if (cMPage) { cMPage.options.scales.y.max = dynamicYLimit; cMPage.data.labels = liveHistoryLbl; cMPage.data.datasets[0].data = liveHistoryRpm; cMPage.data.datasets[1].data = liveHistorySp; cMPage.update('none'); }
@@ -383,20 +377,19 @@ function processIncomingData(rpm, pwm, error, level) {
     if (cCmpS)  { cCmpS.options.scales.y.max = dynamicYLimit; cCmpS.data.labels = liveHistoryLbl; cCmpS.data.datasets[0].data = liveHistoryRpm; cCmpS.data.datasets[1].data = liveHistorySp; cCmpS.update('none'); }
   }
 
-  logTelemetry(rpm, pwm, error, overshoot, activeFuzzyVal, level);
+  logTelemetry(rpm, pwm, steadyStateError, overshoot, activeFuzzyVal, level);
 }
 
-function logTelemetry(rpm, pwm, error, overshoot, activeFuzzyVal, level) {
+function logTelemetry(rpm, pwm, err, os, fuzzy, level) {
   const timeStr = new Date().toLocaleTimeString('id-ID'); 
-  
   allData.unshift({ 
     time: timeStr, 
     rpm: rpm.toFixed(1), 
     sp: currentSetpointVal, 
     pwm: pwm.toFixed(0), 
-    err: error.toFixed(1),           
-    os: overshoot.toFixed(1),        
-    type: activeFuzzyVal === 'mamdani' ? 'Mamdani' : 'Sugeno', 
+    err: err.toFixed(1),           
+    os: os.toFixed(1),        
+    type: fuzzy === 'mamdani' ? 'Mamdani' : 'Sugeno', 
     beban: level 
   });
   
@@ -439,18 +432,9 @@ function updateFuzzyMetricTables() {
       const valSseM = parseFloat(sM.sse) || 0;
       const valOsS = parseFloat(sS.os) || 0;
       const valSseS = parseFloat(sS.sse) || 0;
-      
-      // Rumus stabilitas berdasarkan kombinasi Overshoot + Error
       const skorMamdani = valOsM + valSseM;
       const skorSugeno = valOsS + valSseS;
-
-      if (skorSugeno < skorMamdani) {
-        winner = 'Sugeno';
-      } else if (skorMamdani < skorSugeno) {
-        winner = 'Mamdani';
-      } else {
-        winner = 'Seimbang';
-      }
+      if (skorSugeno < skorMamdani) { winner = 'Sugeno'; } else if (skorMamdani < skorSugeno) { winner = 'Mamdani'; } else { winner = 'Seimbang'; }
     }
     
     cmpHTML += `<tr><td>Level ${lv}</td><td>${sM.os}</td><td>${sS.os}</td><td>${sM.sse}</td><td>${sS.sse}</td><td><span class="badge badge-gold">${winner}</span></td></tr>`;

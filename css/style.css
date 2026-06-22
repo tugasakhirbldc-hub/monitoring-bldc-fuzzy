@@ -831,14 +831,23 @@ body::selection {
   .level-btns   { flex-direction: column; }
   .gauge-wrap   { height: 180px; }
   .tt-group { flex-wrap: wrap; }
-  /* Memaksa 5 kartu metrik menjadi 2 kolom rapi di HP */
+  
+  /* FIX: Memaksa 5 kartu metrik menjadi 2 kolom rapi di HP */
   .grid4 { 
     display: grid !important; 
-    grid-template-columns: 1fr 1fr !important; 
-    gap: 8px !important; 
+    grid-template-columns: repeat(2, 1fr) !important; 
+    gap: 10px !important; 
   }
-  .metric-card { padding: 12px 10px; }
-  .mc-value { font-size: clamp(18px, 5vw, 24px) !important; }
+  
+  /* Membuat kartu ke-5 (Overshoot) memanjang penuh di baris terakhir agar simetris */
+  .grid4 > .metric-card:last-child {
+    grid-column: span 2;
+  }
+  
+  /* Penyesuaian ukuran teks (font) agar tidak bertabrakan di layar kecil */
+  .metric-card { padding: 14px 12px; }
+  .mc-value { font-size: 22px !important; }
+  .mc-label { font-size: 9px !important; }
 }
 
 @media (max-width: 480px) {
