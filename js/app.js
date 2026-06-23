@@ -14,7 +14,7 @@ let mqttClient         = null;
 let motorRunning       = false;
 let activeLevelVal     = 'N';
 let activeFuzzyVal     = 'sugeno'; 
-let currentSetpointVal = 0;
+let currentSetpointVal = 100;
 let peakRPM            = 0;
 let msgCount           = 0;
 
