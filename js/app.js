@@ -244,6 +244,10 @@ function runMotor() {
   startFuzzyCapture();
 
   mqttClient.publish(TOPICS.CTRL_START, '1', { qos: 1 });
+  
+  // TAMBAHAN: Kirim angka 100 otomatis ke ESP32 sesaat setelah start
+  mqttClient.publish(TOPICS.CTRL_SETPOINT, String(currentSetpointVal), { qos: 1 });
+  
   safeSet('prevStart', '1 (Start)');
   safeSet('motorStatusBadge', '● Running'); document.getElementById('motorStatusBadge').className = 'badge badge-green';
   safeSet('dashStatusBadge', '● Running'); document.getElementById('dashStatusBadge').className = 'badge badge-green';
@@ -448,7 +452,21 @@ function exportCSV() {
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([headers + rows], { type: 'text/csv' })); a.download = 'bldc_telemetry.csv'; a.click();
 }
 
-window.onload = () => { initDashboardCharts(); selectFuzzyType('sugeno'); };
+window.onload = () => { 
+  initDashboardCharts(); 
+  selectFuzzyType('sugeno'); 
+  
+  // Memaksa slider, input teks, dan indikator metrik langsung ke 100
+  if(document.getElementById('spRPMInput')) document.getElementById('spRPMInput').value = 100;
+  if(document.getElementById('spRPM')) document.getElementById('spRPM').value = 100;
+  
+  safeSet('spRPMVal', 100); 
+  safeSet('mSetpoint', 100); 
+  safeSet('activeSetpoint', '100 RPM');
+  safeSet('gaugeSetpointVal', 100);
+  safeStyle('barSetpoint', 'width', (100 / 450 * 100) + '%');
+  updatePreviewUI();
+};
 document.addEventListener('click', () => document.querySelectorAll('.sub-menu').forEach(m => m.classList.remove('open')));
 
 window.showPage = showPage; 
