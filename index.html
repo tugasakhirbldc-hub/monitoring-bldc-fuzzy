@@ -5,439 +5,714 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
   <title>Monitoring dan Kontrol Motor BLDC</title>
+
+  <!-- Font dari Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- File CSS utama -->
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
-<div class="overlay" id="confirmOverlay">
-  <div class="confirm-box">
-    <h3>⚠ Stop Motor?</h3>
-    <p>Motor akan dihentikan segera.<br>Pastikan tidak ada proses pengujian yang sedang berlangsung.</p>
-    <div class="confirm-actions">
-      <button class="btn btn-ghost" onclick="closeConfirm()">Batal</button>
-      <button class="btn btn-red"   onclick="confirmStop()">Ya, Stop Motor</button>
-    </div>
-  </div>
-</div>
-
-<header class="topbar">
-  <div class="topbar-header">
-    <div class="topbar-brand">
-      <div class="brand-icon">
-        <img src="assets/favicon.png" alt="Logo BLDC" style="height: 32px; width: auto; vertical-align: middle;">
-      </div>
-      <div>
-        <div class="brand-name">Monitoring dan Kontrol Motor BLDC</div>
-        <div class="brand-sub">Fuzzy Logic Adaptive Control System</div>
+  <!-- ==================== POPUP KONFIRMASI STOP MOTOR ==================== -->
+  <!-- Muncul saat tombol "Stop Motor" ditekan, untuk konfirmasi dulu sebelum motor benar-benar dimatikan -->
+  <div class="overlay" id="confirmOverlay">
+    <div class="confirm-box">
+      <h3>⚠ Stop Motor?</h3>
+      <p>Motor akan dihentikan segera.<br>Pastikan tidak ada proses pengujian yang sedang berlangsung.</p>
+      <div class="confirm-actions">
+        <button class="btn btn-ghost" onclick="closeConfirm()">Batal</button>
+        <button class="btn btn-red" onclick="confirmStop()">Ya, Stop Motor</button>
       </div>
     </div>
-    <div class="topbar-right">
-      <div class="mqtt-pill" id="mqttPill"><div class="mqtt-dot" id="mqttDot"></div><span id="mqttStatusText">MQTT Offline</span></div>
-      <div class="datetime-box"><div class="date-display" id="dateDisplay">-- ---- ----</div><div class="time-display" id="clockDisplay">--:--:--</div></div>
-    </div>
   </div>
 
-  <nav class="topbar-nav">
-    <div class="nav-item active" onclick="showPage('dashboard', this)"><span class="nav-icon">🏠</span> Dashboard</div>
-    <div class="nav-item has-sub" id="nav-fuzzy" onclick="toggleSubMenu('fuzzy-sub', event)">
-      <span class="nav-icon">📊</span> Tipe Fuzzy <span class="sub-arrow">▾</span>
-      <div class="sub-menu" id="fuzzy-sub">
-        <div class="sub-item" onclick="showFuzzyMode('mamdani', event)"><span class="sub-dot blue"></span> Fuzzy Mamdani</div>
-        <div class="sub-item" onclick="showFuzzyMode('sugeno', event)"><span class="sub-dot green"></span> Fuzzy Sugeno</div>
-        <div class="sub-item" onclick="showFuzzyMode('compare', event)"><span class="sub-dot cyan"></span> Perbandingan</div>
-      </div>
-    </div>
-    <div class="nav-item" onclick="showPage('telemetry', this)"><span class="nav-icon">📋</span> Telemetry</div>
-    <div class="nav-item" onclick="showPage('pengaturan', this)"><span class="nav-icon">⚙️</span> Pengaturan Sistem</div>
-    <div class="nav-item" onclick="showPage('panduan', this)"><span class="nav-icon">📖</span> Panduan & Dokumen</div>
-  </nav>
-</header>
+  <!-- ==================== HEADER / TOPBAR ==================== -->
+  <header class="topbar">
 
-<div class="app-body">
-<main class="main">
+    <!-- Bagian atas topbar: logo, judul, status MQTT, dan jam -->
+    <div class="topbar-header">
 
-<div id="page-dashboard" class="page active">
-  <div class="page-head mb-16">
-    <div>
-      <div class="section-title">Kondisi Terkini Motor BLDC</div>
-      <div class="section-sub">Real-time monitoring via MQTT broker — bldc/data/*</div>
-    </div>
-    <div class="flex gap-8 flex-wrap align-center">
-      <span class="badge badge-gold">Level: <b id="dashLevel">N</b></span>
-      <span class="badge badge-cyan" id="dashFuzzyBadge">Fuzzy: Sugeno</span>
-      <span class="badge badge-red" id="dashStatusBadge">● Stopped</span>
-    </div>
-  </div>
-
-  <div class="grid4 mb-16">
-    <div class="metric-card"> <div class="mc-label">RPM Aktual</div><div class="mc-value" id="mRPM">0</div><div class="mc-unit">rpm</div><div class="mc-bar"><div class="mc-bar-fill" id="barRPM" style="width:0%"></div></div></div>
-    <div class="metric-card green"> <div class="mc-label">PWM Output</div><div class="mc-value" id="mPWM">103</div><div class="mc-unit">duty cycle (103–255)</div><div class="mc-bar"><div class="mc-bar-fill green" id="barPWM" style="width:0%"></div></div></div>
-    <div class="metric-card amber"> <div class="mc-label">Steady-State Error</div><div class="mc-value" id="mError">0</div><div class="mc-unit">rpm</div><div class="mc-bar"><div class="mc-bar-fill amber" id="barError" style="width:0%"></div></div></div>
-    <div class="metric-card blue"> <div class="mc-label">Error Instan</div><div class="mc-value" id="mErrorInstan">0</div><div class="mc-unit">rpm</div><div class="mc-bar"><div class="mc-bar-fill blue" id="barErrorInstan" style="width:0%"></div></div></div>
-    <div class="metric-card"> <div class="mc-label">Setpoint RPM</div><div class="mc-value" id="mSetpoint">0</div><div class="mc-unit">target rpm</div><div class="mc-bar"><div class="mc-bar-fill" id="barSetpoint" style="width:0%"></div></div></div>
-    <div class="metric-card amber"> <div class="mc-label">Overshoot</div><div class="mc-value" id="overshootVal">0</div><div class="mc-unit">%</div><div class="mc-bar"><div class="mc-bar-fill amber" id="barOvershoot" style="width:0%"></div></div></div>
-    <div class="mc-bar"><div class="mc-bar-fill" id="barErrorInstan" style="width:0%"></div></div></div>
-  </div>
-
-  <div class="card mb-16">
-    <div class="card-title mb-12">Kontrol Pembebanan (Servo)</div>
-    <div class="level-btns">
-      <button class="level-btn" onclick="selectLevel('1', this)"><div class="lb-icon">⚡</div>Load 1<br><span class="lb-sub">25%</span></button>
-      <button class="level-btn" onclick="selectLevel('2', this)"><div class="lb-icon">⚡⚡</div>Load 2<br><span class="lb-sub">50%</span></button>
-      <button class="level-btn" onclick="selectLevel('3', this)"><div class="lb-icon">⚡⚡⚡</div>Load 3<br><span class="lb-sub">75%</span></button>
-      <button class="level-btn active" onclick="selectLevel('N', this)"><div class="lb-icon">⏸</div>0 Load<br><span class="lb-sub">0%</span></button>
-    </div>
-  </div>
-
-  <div class="dash-row mb-16">
-    <div class="card dash-chart">
-      <div class="section-head">
-        <div><div class="card-title">Grafik RPM Real-time</div><div class="section-title" style="font-size:15px;">Live Feed</div></div>
-        <div class="flex gap-8"><span class="leg-item"><span class="leg-line solid"></span> RPM</span><span class="leg-item"><span class="leg-line dashed"></span> Setpoint</span></div>
-      </div>
-      <div class="chart-wrap"><canvas id="rpmChart"></canvas></div>
-    </div>
-    
-    <div class="card dash-gauge">
-      <div class="card-title">Speedometer</div>
-      <div class="gauge-wrap" style="height: 190px;"><canvas id="gaugeChart"></canvas></div>
-      <div class="flex" style="margin-top: 15px; border-top: 1px solid var(--border); padding-top: 12px;">
-        <div style="flex:1; text-align:center; border-right:1px solid var(--border);">
-          <div style="font-size:10px; color:var(--text-lo); margin-bottom:2px;">SETPOINT</div>
-          <div id="gaugeSetpointVal" style="font-family:'Rajdhani',sans-serif; font-size:18px; font-weight:700; color:#06b6d4;">0</div>
+      <!-- Logo dan nama aplikasi -->
+      <div class="topbar-brand">
+        <div class="brand-icon">
+          <img src="assets/favicon.png" alt="Logo BLDC" style="height: 32px; width: auto; vertical-align: middle;">
         </div>
-        <div style="flex:1; text-align:center;">
-          <div style="font-size:10px; color:var(--text-lo); margin-bottom:2px;">RISE TIME</div>
-          <div id="gaugeRiseTimeVal" style="font-family:'Rajdhani',sans-serif; font-size:18px; font-weight:700; color:#10b981;">0.0 s</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="grid2 mb-16">
-    <div class="card">
-      <div class="card-title">MQTT Status</div>
-      <div class="info-grid">
-        <div class="info-cell"><div class="info-key">Broker</div><div class="info-val" id="mqttBrokerStatus"><span class="dot red"></span>Offline</div></div>
-        <div class="info-cell"><div class="info-key">Host</div><div class="info-val small" id="mqttHostDisplay">--</div></div>
-        <div class="info-cell"><div class="info-key">Last Message</div><div class="info-val" id="lastMsg">--</div></div>
-        <div class="info-cell"><div class="info-key">Total Pesan</div><div class="info-val" id="mqttMsgCount">0</div></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">Rentang RPM Sesi Ini</div>
-      <div class="rpm-range">
-        <div><div class="range-lbl">MIN</div><div class="range-val green" id="rpmMin">0</div><div class="range-unit">rpm</div></div>
-        <div class="range-sep">—</div>
-        <div><div class="range-lbl">MAX</div><div class="range-val red" id="rpmMax">0</div><div class="range-unit">rpm</div></div>
-      </div>
-      <div class="divider"></div><div class="last-upd">Updated: <span id="lastUpdate">--</span></div>
-    </div>
-  </div>
-</div>
-
-<!-- ==================== PAGE: TIPE FUZZY ==================== -->
-<div id="page-fuzzy" class="page">
-  <!-- Mamdani -->
-  <div id="fuzzy-mamdani" class="fuzzy-sub-page" style="display:none">
-    <div class="page-head mb-16">
-      <div>
-        <div class="fuzzy-breadcrumb">Tipe Fuzzy › Mamdani</div>
-        <div class="section-title">Fuzzy Mamdani</div><div class="section-sub">Analisis Respons Sistem (Live Oscilloscope)</div>
-      </div>
-    </div>
-    <div class="grid2 mb-16">
-      <div class="card">
-        <div class="section-head mb-12"><div><div class="card-title">Kurva Respons Motor</div><div style="font-family:'Rajdhani',sans-serif;font-size:16px;font-weight:700;color:#7dd3fc;">Mamdani (Live 60s Buffer)</div></div></div>
-        <div class="chart-wrap"><canvas id="chartMamdani"></canvas></div>
-      </div>
-      <div class="card">
-        <div class="card-title mb-8">Membership Function — Input Error</div>
-        <div class="mf-chips mb-8"><span class="mf-chip" style="border-color:#ef4444;color:#ef4444">NB</span><span class="mf-chip" style="border-color:#f97316;color:#f97316">NS</span><span class="mf-chip" style="border-color:#10b981;color:#10b981">Z</span><span class="mf-chip" style="border-color:#3b82f6;color:#3b82f6">PS</span><span class="mf-chip" style="border-color:#8b5cf6;color:#8b5cf6">PB</span></div>
-        <div class="chart-wrap"><canvas id="mfMamdani"></canvas></div>
-        <div class="chart-meta">Domain: -100 s.d 100 (Trapezoidal Shoulder)</div>
-      </div>
-    </div>
-    <div class="card mb-16">
-      <div class="card-title mb-12">Matriks Rule Base — Mamdani</div>
-      <div class="tbl-wrap"><table class="rule-tbl" id="ruleMamdani"></table></div>
-    </div>
-    <div class="card">
-      <div class="card-title mb-12">Metrik Performa Aktual — Mamdani</div>
-      <div class="tbl-wrap">
-        <table class="glass-table">
-          <thead><tr><th>Beban</th><th>Rise Time</th><th>Max Overshoot</th><th>Rata-rata SSE</th><th>Metode</th></tr></thead>
-          <tbody id="metricMBody"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <!-- Sugeno -->
-  <div id="fuzzy-sugeno" class="fuzzy-sub-page" style="display:none">
-    <div class="page-head mb-16">
-      <div>
-        <div class="fuzzy-breadcrumb">Tipe Fuzzy › Sugeno</div>
-        <div class="section-title">Fuzzy Sugeno</div><div class="section-sub">Analisis Respons Sistem (Live Oscilloscope)</div>
-      </div>
-    </div>
-    <div class="grid2 mb-16">
-      <div class="card">
-        <div class="section-head mb-12"><div><div class="card-title">Kurva Respons Motor</div><div style="font-family:'Rajdhani',sans-serif;font-size:16px;font-weight:700;color:#6ee7b7;">Sugeno (Live 60s Buffer)</div></div></div>
-        <div class="chart-wrap"><canvas id="chartSugeno"></canvas></div>
-      </div>
-      <div class="card">
-        <div class="card-title mb-8">Membership Function — Input Error</div>
-        <div class="mf-chips mb-8"><span class="mf-chip" style="border-color:#ef4444;color:#ef4444">NB</span><span class="mf-chip" style="border-color:#f97316;color:#f97316">NS</span><span class="mf-chip" style="border-color:#10b981;color:#10b981">Z</span><span class="mf-chip" style="border-color:#3b82f6;color:#3b82f6">PS</span><span class="mf-chip" style="border-color:#8b5cf6;color:#8b5cf6">PB</span></div>
-        <div class="chart-wrap"><canvas id="mfSugeno"></canvas></div>
-        <div class="chart-meta">Domain: -100 s.d 100 (Trapezoidal Shoulder)</div>
-      </div>
-    </div>
-    <div class="card mb-16">
-      <div class="card-title mb-12">Matriks Rule Base — Sugeno</div>
-      <div class="tbl-wrap"><table class="rule-tbl" id="ruleSugeno"></table></div>
-    </div>
-    <div class="card">
-      <div class="card-title mb-12">Metrik Performa Aktual — Sugeno</div>
-      <div class="tbl-wrap">
-        <table class="glass-table">
-          <thead><tr><th>Beban</th><th>Rise Time</th><th>Max Overshoot</th><th>Rata-rata SSE</th><th>Metode</th></tr></thead>
-          <tbody id="metricSBody"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <!-- Compare -->
-  <div id="fuzzy-compare" class="fuzzy-sub-page" style="display:none">
-    <div class="page-head mb-16">
-      <div>
-        <div class="fuzzy-breadcrumb">Tipe Fuzzy › Perbandingan</div>
-        <div class="section-title">Mamdani vs Sugeno</div><div class="section-sub">Komparasi Osiloskop Live</div>
-      </div>
-    </div>
-    <div class="grid2 mb-16">
-      <div class="card"><div class="section-head mb-12"><div class="card-title" style="margin-bottom:0">Grafik Live</div><span class="badge badge-blue">Mamdani</span></div><div class="chart-wrap"><canvas id="chartCmpM"></canvas></div></div>
-      <div class="card"><div class="section-head mb-12"><div class="card-title" style="margin-bottom:0">Grafik Live</div><span class="badge badge-green">Sugeno</span></div><div class="chart-wrap"><canvas id="chartCmpS"></canvas></div></div>
-    </div>
-    <div class="card">
-      <div class="card-title mb-12">Tabel Rekapitulasi Perbandingan</div>
-      <div class="tbl-wrap">
-        <table class="glass-table">
-          <thead><tr><th>Beban</th><th>Max Overshoot (M)</th><th>Max Overshoot (S)</th><th>Avg SSE (M)</th><th>Avg SSE (S)</th><th>Lebih Stabil</th></tr></thead>
-          <tbody id="metricCmpBody"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ==================== PAGE: TELEMETRY ==================== -->
-<div id="page-telemetry" class="page">
-  <div class="page-head mb-16">
-    <div><div class="section-title">Telemetry</div><div class="section-sub">Riwayat pengukuran dan ekspor data</div></div>
-    <div class="flex gap-8">
-      <button class="btn btn-ghost" onclick="triggerImport()">📂 Import CSV</button>
-      <button class="btn btn-primary" onclick="exportCSV()">⬇ Ekspor CSV</button>
-      <button class="btn btn-red" onclick="resetTelemetry()">🗑 Reset Data</button>
-    </div>
-    <input type="file" id="csvImport" accept=".csv" style="display:none" onchange="handleImport(event)">
-  </div>
-
-  <div class="grid4 mb-16">
-    <div class="metric-card"><div class="mc-label">Total Data</div><div class="mc-value" id="statTotal">0</div><div class="mc-unit">sampel</div></div>
-    <div class="metric-card green"><div class="mc-label">Avg RPM</div><div class="mc-value" id="statAvgRPM">0</div><div class="mc-unit">rpm rata-rata</div></div>
-    <div class="metric-card amber"><div class="mc-label">Avg Error Mamdani</div><div class="mc-value" id="statErrM">0%</div><div class="mc-unit">steady-state error</div></div>
-    <div class="metric-card"><div class="mc-label">Avg Error Sugeno</div><div class="mc-value" id="statErrS">0%</div><div class="mc-unit">steady-state error</div></div>
-  </div>
-
-  <div class="card">
-    <div class="section-head mb-12"><div class="card-title" style="margin-bottom:0">Tabel Log Aktual</div><span class="badge badge-cyan" id="dataCount">0 entri</span></div>
-    <div class="tbl-wrap">
-      <table class="glass-table">
-        <thead><tr><th>#</th><th>Waktu Lokal</th><th>RPM</th><th>Setpoint</th><th>PWM</th><th>Error (RPM)</th><th>Overshoot (%)</th><th>Tipe Fuzzy</th><th>Beban</th></tr></thead>
-        <tbody id="dataTableBody"></tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
-<!-- ==================== PAGE: PENGATURAN SISTEM ==================== -->
-
-<div id="page-pengaturan" class="page">
-  <div class="page-head mb-16">
-    <div><div class="section-title">Pengaturan Sistem</div><div class="section-sub">Set parameter dan kirim perintah via HiveMQ</div></div>
-    <span id="motorStatusBadge" class="badge badge-red">● Stopped</span>
-  </div>
-
-  <div class="grid2">
-    <div class="flex flex-col gap-16">
-      
-      <div class="card">
-        <div class="card-title mb-12">Set Setpoint RPM</div>
-        
-        <div class="slider-header mb-16" style="border-bottom: 1px solid rgba(224,197,143,0.15); padding-bottom: 8px;">
-          <span class="slider-lbl">Setpoint RPM Aktif</span>
-          <span class="slider-val" id="spRPMVal">100</span>
-        </div>
-        
-        <div class="input-label mt-8">Input Manual (rpm)</div>
-        <div class="flex gap-8">
-          <input type="number" class="glass-input flex-1" id="spRPMInput" value="100" min="0" max="450">
-          <button class="btn btn-primary" onclick="confirmSetpoint()">OK</button>
-        </div>
-        <div class="motor-hint mt-8 text-left">Tekan <b>OK</b> untuk mengirim Setpoint baru.</div>
-      </div>
-
-      <div class="card">
-        <div class="card-title mb-12">Tipe Fuzzy Controller</div>
-        <div class="fuzzy-toggle">
-          <div class="fuzzy-opt" id="fuzzyOptM" onclick="selectFuzzyType('mamdani')"><div class="fo-icon">🔵</div><div><div class="fo-name" id="foNameM">Mamdani</div><div class="fo-desc">Defuzzifikasi: Centroid</div></div><div class="fo-check" id="checkM" style="opacity:0">✓</div></div>
-          <div class="fuzzy-opt selected-green" id="fuzzyOptS" onclick="selectFuzzyType('sugeno')"><div class="fo-icon">🟢</div><div><div class="fo-name" id="foNameS" style="color:#6ee7b7">Sugeno</div><div class="fo-desc">Defuzzifikasi: Weighted Average</div></div><div class="fo-check" id="checkS" style="opacity:1">✓</div></div>
-        </div>
-        <input type="hidden" id="fuzzyType" value="sugeno">
-      </div>
-
-      <div class="card">
-        <div class="card-title mb-12">Konfigurasi MQTT Broker</div>
-        <div class="form-grid">
-          <div><div class="input-label">Host</div><input type="text" class="glass-input" id="mqttHost" value="135840675bac493eb6c27870dd01f4fb.s1.eu.hivemq.cloud"></div>
-          <div><div class="input-label">Port WSS (TLS)</div><input type="number" class="glass-input" id="mqttPort" value="8884"></div>
-          <div><div class="input-label">Username</div><input type="text" class="glass-input" id="mqttUser" value="bldcadmin"></div>
-          <div><div class="input-label">Password</div><input type="password" class="glass-input" id="mqttPass" value="Bldc_PNJ_123!"></div>
-        </div>
-        <div class="flex gap-10 mt-16 flex-wrap">
-          <button class="btn btn-primary" onclick="connectMQTT()">🔌 Connect</button>
-          <button class="btn btn-red" onclick="disconnectMQTT()">✖ Disconnect</button>
-        </div>
-      </div>
-    </div> <div class="flex flex-col gap-16">
-      
-      <div class="card">
-        <div class="card-title mb-12">Status Sistem &amp; Aksi</div>
-        <div class="info-grid mb-16" style="grid-template-columns:1fr 1fr">
-          <div class="info-cell"><div class="info-key">Motor</div><div class="info-val" id="motorStatusText"><span class="dot red"></span>Stopped</div></div>
-          <div class="info-cell"><div class="info-key">Setpoint Aktif</div><div class="info-val" id="activeSetpoint">0 RPM</div></div>
-          <div class="info-cell"><div class="info-key">Fuzzy Aktif</div><div class="info-val" id="activeFuzzy">Sugeno</div></div>
-          <div class="info-cell"><div class="info-key">Level Beban</div><div class="info-val" id="activeLevel">N</div></div>
-        </div>
-        <button class="motor-btn motor-run mb-12" onclick="runMotor()">▶ Start Motor</button>
-        <button class="motor-btn motor-stop" onclick="askStop()">■ Stop Motor</button>
-      </div> 
-
-      <div class="card">
-        <div class="card-title mb-12">Pembaruan Sistem (OTA Web)</div>
-        <p style="font-size: 12px; color: var(--text-mid); line-height: 1.6; margin-bottom: 12px;">
-          Unggah program ESP32 <b>(.bin)</b> secara nirkabel. Pastikan laptop/HP dan ESP32 berada di jaringan WiFi yang sama.
-        </p>
-        <ol style="font-size: 11px; color: var(--text-lo); margin-left: 16px; margin-bottom: 14px; line-height: 1.6;">
-          <li>Di Arduino IDE, klik menu <b>Sketch ➔ Export compiled Binary</b>.</li>
-          <li>Cek IP Address ESP32 di Serial Monitor (atau setting router).</li>
-          <li>Masukkan IP tersebut ke kolom di bawah, lalu klik <b>Buka Portal</b>.</li>
-          <li>Pada tab baru, pilih file <i>.bin</i> tadi dan klik <b>Upload</b>.</li>
-        </ol>
-        <div class="flex gap-8">
-          <input type="text" class="glass-input flex-1" id="otaIpAddress" placeholder="Contoh IP: 192.168.1.15">
-          <button class="btn btn-primary" onclick="openOTAPortal()">Buka Portal</button>
+        <div>
+          <div class="brand-name">Monitoring dan Kontrol Motor BLDC</div>
+          <div class="brand-sub">Fuzzy Logic Adaptive Control System</div>
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-title mb-8">MQTT Publish Preview</div>
-        <div class="mqtt-preview">
-          <div class="mp-section-label">→ bldc/control/start / stop</div><div class="mp-line"><span class="mp-green" id="prevStart">0 (Stop)</span></div><div class="mp-divider"></div>
-          <div class="mp-section-label">→ bldc/control/setpoint</div><div class="mp-line"><span class="mp-green" id="prevSetpoint">0</span></div><div class="mp-divider"></div>
-          <div class="mp-section-label">→ bldc/control/fuzzy</div><div class="mp-line"><span class="mp-yellow" id="prevFuzzy">sugeno</span></div><div class="mp-divider"></div>
-          <div class="mp-section-label">→ bldc/control/level</div><div class="mp-line"><span class="mp-green" id="prevLevel">N</span></div>
+      <!-- Status koneksi MQTT dan jam real-time -->
+      <div class="topbar-right">
+        <div class="mqtt-pill" id="mqttPill">
+          <div class="mqtt-dot" id="mqttDot"></div>
+          <span id="mqttStatusText">MQTT Offline</span>
+        </div>
+        <div class="datetime-box">
+          <div class="date-display" id="dateDisplay">-- ---- ----</div>
+          <div class="time-display" id="clockDisplay">--:--:--</div>
         </div>
       </div>
 
-    </div> </div> </div>
-
-<!-- ==================== PAGE: PANDUAN & DOKUMENTASI ==================== -->
-
-<div id="page-panduan" class="page">
-  <div class="page-head mb-16">
-    <div>
-      <div class="section-title">Panduan Operasional & Dokumen</div>
-      <div class="section-sub">SOP Alat, Konfigurasi Jaringan, dan Akses Laporan Tugas Akhir</div>
-    </div>
-  </div>
-
-  <div class="grid2 mb-16">
-    <div class="flex flex-col gap-16">
-      
-      <div class="card">
-        <div class="card-title mb-12">Konfigurasi WiFi (Tanpa Kabel)</div>
-        <p style="font-size: 12px; color: var(--text-mid); line-height: 1.6; margin-bottom: 12px;">
-          Jika ESP32 tidak terhubung internet, ikuti langkah berikut:
-        </p>
-        <ol style="font-size: 13px; color: var(--text-hi); margin-left: 16px; line-height: 1.8;">
-          <li>Nyalakan daya ESP32.</li>
-          <li>Buka pengaturan WiFi di HP/Laptop, cari jaringan bernama <b style="color:#67e8f9">ESP32_BLDC_Config</b>.</li>
-          <li>Masukkan password: <b style="color:#6ee7b7">Admin123</b>.</li>
-          <li>Layar HP otomatis membuka Portal Setup. Klik tombol <b>Configure WiFi</b>.</li>
-          <li>Pilih jaringan WiFi yang diinginkan, masukkan password WiFi tersebut, lalu klik <b>Save</b>.</li>
-          <li>ESP32 akan merestart dan otomatis terhubung ke internet.</li>
-        </ol>
-      </div>
-
-      <div class="card flex-1">
-        <div class="card-title mb-12">Prosedur Menjalankan Alat (SOP)</div>
-        <ol style="font-size: 13px; color: var(--text-hi); margin-left: 16px; line-height: 1.8;">
-          <li>
-            Pastikan web terhubung ke broker MQTT. Buka menu <b>Pengaturan Sistem</b>, isi data berikut, lalu klik <span style="font-weight:bold; color:var(--text-hi);">Connect</span>:
-            <ul style="list-style-type: disc; margin-left: 20px; margin-top: 4px; margin-bottom: 4px; color: var(--text-mid);">
-              <li><b>Host:</b> 135840675bac493eb6c27870dd01f4fb.s1.eu.hivemq.cloud</li>
-              <li><b>Port WSS:</b> 8884</li>
-              <li><b>Username:</b> bldcadmin</li>
-              <li><b>Password:</b> Bldc_PNJ_123!</li>
-            </ul>
-            Pastikan indikator MQTT di sudut kanan atas web berubah menjadi <span class="badge badge-green" style="padding:1px 6px">Online</span>.
-          </li>
-          <li>Nyalakan saklar/MCB Power Supply 48V yang terhubung ke Motor Controller (ESC).</li>
-          <li>Di menu <b>Pengaturan</b>, tentukan target putaran pada <b>Setpoint RPM</b>.</li>
-          <li>Pilih jenis kendali (<b>Mamdani</b> atau <b>Sugeno</b>).</li>
-          <li>Pilih kondisi pembebanan pengereman (Load 1 / 2 / 3 / 0).</li>
-          <li>Tekan tombol <span style="color:#6ee7b7; font-weight:bold;">▶ Start Motor</span>.</li>
-          <li>Pantau kestabilan motor di tab <b>Tipe Fuzzy</b> atau <b>Dashboard</b>.</li>
-          <li>Jika sudah selesai, wajib tekan tombol <span style="color:#fca5a5; font-weight:bold;">■ Stop Motor</span>.</li>
-        </ol>
-      </div>
-
     </div>
 
-    <div class="flex flex-col gap-16">
-      
-      <div class="card">
-        <div class="card-title mb-12">Laporan Tugas Akhir</div>
-        <p style="font-size: 12px; color: var(--text-mid); line-height: 1.6; margin-bottom: 16px;">
-          Akses dokumen lengkap laporan Tugas Akhir.
-        </p>
-        <a href="https://drive.google.com/drive/folders/1ukM_VbB66TFeXou51Qkf6rYbYVdDC6_q?usp=sharing" target="_blank" style="text-decoration: none;">
-          <button class="btn btn-primary" style="width: 100%; justify-content: center; padding: 14px; font-size: 15px;">
-            <span style="font-size: 18px; margin-right: 8px;">📂</span> Buka Dokumen (Google Drive)
-          </button>
-        </a>
+    <!-- Menu navigasi halaman -->
+    <nav class="topbar-nav">
+      <div class="nav-item active" onclick="showPage('dashboard', this)">
+        <span class="nav-icon">🏠</span> Dashboard
       </div>
 
-      <div class="card flex-1">
-        <div class="card-title mb-12">Flowchart Sistem Adaptive</div>
-        <div style="background: rgba(0,0,0,0.3); border-radius: 8px; padding: 10px; text-align: center; border: 1px solid var(--border);">
-          <img src="assets/flowchart.png" alt="Flowchart Sistem" style="width: 100%; max-width: 400px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.4);">
+      <!-- Menu dengan sub-menu: Tipe Fuzzy -->
+      <div class="nav-item has-sub" id="nav-fuzzy" onclick="toggleSubMenu('fuzzy-sub', event)">
+        <span class="nav-icon">📊</span> Tipe Fuzzy <span class="sub-arrow">▾</span>
+        <div class="sub-menu" id="fuzzy-sub">
+          <div class="sub-item" onclick="showFuzzyMode('mamdani', event)"><span class="sub-dot blue"></span> Fuzzy Mamdani</div>
+          <div class="sub-item" onclick="showFuzzyMode('sugeno', event)"><span class="sub-dot green"></span> Fuzzy Sugeno</div>
+          <div class="sub-item" onclick="showFuzzyMode('compare', event)"><span class="sub-dot cyan"></span> Perbandingan</div>
         </div>
       </div>
-    </div>
+
+      <div class="nav-item" onclick="showPage('telemetry', this)">
+        <span class="nav-icon">📋</span> Telemetry
+      </div>
+      <div class="nav-item" onclick="showPage('pengaturan', this)">
+        <span class="nav-icon">⚙️</span> Pengaturan Sistem
+      </div>
+      <div class="nav-item" onclick="showPage('panduan', this)">
+        <span class="nav-icon">📖</span> Panduan & Dokumen
+      </div>
+    </nav>
+
+  </header>
+
+  <div class="app-body">
+    <main class="main">
+
+      <!-- ==================== HALAMAN: DASHBOARD ==================== -->
+      <div id="page-dashboard" class="page active">
+
+        <!-- Judul halaman + badge status (level beban, tipe fuzzy, status motor) -->
+        <div class="page-head mb-16">
+          <div>
+            <div class="section-title">Kondisi Terkini Motor BLDC</div>
+            <div class="section-sub">Real-time monitoring via MQTT broker — bldc/data/*</div>
+          </div>
+          <div class="flex gap-8 flex-wrap align-center">
+            <span class="badge badge-gold">Level: <b id="dashLevel">N</b></span>
+            <span class="badge badge-cyan" id="dashFuzzyBadge">Fuzzy: Sugeno</span>
+            <span class="badge badge-red" id="dashStatusBadge">● Stopped</span>
+          </div>
+        </div>
+
+        <!-- Kartu-kartu metrik utama (RPM, PWM, Error, dll) -->
+        <div class="grid4 mb-16">
+          <div class="metric-card">
+            <div class="mc-label">RPM Aktual</div>
+            <div class="mc-value" id="mRPM">0</div>
+            <div class="mc-unit">rpm</div>
+            <div class="mc-bar"><div class="mc-bar-fill" id="barRPM" style="width:0%"></div></div>
+          </div>
+
+          <div class="metric-card green">
+            <div class="mc-label">PWM Output</div>
+            <div class="mc-value" id="mPWM">103</div>
+            <div class="mc-unit">duty cycle (103–255)</div>
+            <div class="mc-bar"><div class="mc-bar-fill green" id="barPWM" style="width:0%"></div></div>
+          </div>
+
+          <div class="metric-card amber">
+            <div class="mc-label">Steady-State Error</div>
+            <div class="mc-value" id="mError">0</div>
+            <div class="mc-unit">rpm</div>
+            <div class="mc-bar"><div class="mc-bar-fill amber" id="barError" style="width:0%"></div></div>
+          </div>
+
+          <div class="metric-card blue">
+            <div class="mc-label">Error Instan</div>
+            <div class="mc-value" id="mErrorInstan">0</div>
+            <div class="mc-unit">rpm</div>
+            <div class="mc-bar"><div class="mc-bar-fill blue" id="barErrorInstan" style="width:0%"></div></div>
+          </div>
+
+          <div class="metric-card">
+            <div class="mc-label">Setpoint RPM</div>
+            <div class="mc-value" id="mSetpoint">0</div>
+            <div class="mc-unit">target rpm</div>
+            <div class="mc-bar"><div class="mc-bar-fill" id="barSetpoint" style="width:0%"></div></div>
+          </div>
+
+          <div class="metric-card amber">
+            <div class="mc-label">Overshoot</div>
+            <div class="mc-value" id="overshootVal">0</div>
+            <div class="mc-unit">%</div>
+            <div class="mc-bar"><div class="mc-bar-fill amber" id="barOvershoot" style="width:0%"></div></div>
+          </div>
+
+          <!-- Catatan: bar ini duplikat dari barErrorInstan di atas, dibiarkan apa adanya sesuai program asli -->
+          <div class="mc-bar"><div class="mc-bar-fill" id="barErrorInstan" style="width:0%"></div></div>
+        </div>
+
+        <!-- Kontrol pembebanan motor lewat servo (Load 1/2/3 atau tanpa beban) -->
+        <div class="card mb-16">
+          <div class="card-title mb-12">Kontrol Pembebanan (Servo)</div>
+          <div class="level-btns">
+            <button class="level-btn" onclick="selectLevel('1', this)">
+              <div class="lb-icon">⚡</div>Load 1<br><span class="lb-sub">25%</span>
+            </button>
+            <button class="level-btn" onclick="selectLevel('2', this)">
+              <div class="lb-icon">⚡⚡</div>Load 2<br><span class="lb-sub">50%</span>
+            </button>
+            <button class="level-btn" onclick="selectLevel('3', this)">
+              <div class="lb-icon">⚡⚡⚡</div>Load 3<br><span class="lb-sub">75%</span>
+            </button>
+            <button class="level-btn active" onclick="selectLevel('N', this)">
+              <div class="lb-icon">⏸</div>0 Load<br><span class="lb-sub">0%</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Grafik RPM real-time + speedometer -->
+        <div class="dash-row mb-16">
+
+          <div class="card dash-chart">
+            <div class="section-head">
+              <div>
+                <div class="card-title">Grafik RPM Real-time</div>
+                <div class="section-title" style="font-size:15px;">Live Feed</div>
+              </div>
+              <div class="flex gap-8">
+                <span class="leg-item"><span class="leg-line solid"></span> RPM</span>
+                <span class="leg-item"><span class="leg-line dashed"></span> Setpoint</span>
+              </div>
+            </div>
+            <div class="chart-wrap"><canvas id="rpmChart"></canvas></div>
+          </div>
+
+          <div class="card dash-gauge">
+            <div class="card-title">Speedometer</div>
+            <div class="gauge-wrap" style="height: 190px;"><canvas id="gaugeChart"></canvas></div>
+            <div class="flex" style="margin-top: 15px; border-top: 1px solid var(--border); padding-top: 12px;">
+              <div style="flex:1; text-align:center; border-right:1px solid var(--border);">
+                <div style="font-size:10px; color:var(--text-lo); margin-bottom:2px;">SETPOINT</div>
+                <div id="gaugeSetpointVal" style="font-family:'Rajdhani',sans-serif; font-size:18px; font-weight:700; color:#06b6d4;">0</div>
+              </div>
+              <div style="flex:1; text-align:center;">
+                <div style="font-size:10px; color:var(--text-lo); margin-bottom:2px;">RISE TIME</div>
+                <div id="gaugeRiseTimeVal" style="font-family:'Rajdhani',sans-serif; font-size:18px; font-weight:700; color:#10b981;">0.0 s</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Status MQTT + rentang RPM selama sesi berjalan -->
+        <div class="grid2 mb-16">
+
+          <div class="card">
+            <div class="card-title">MQTT Status</div>
+            <div class="info-grid">
+              <div class="info-cell">
+                <div class="info-key">Broker</div>
+                <div class="info-val" id="mqttBrokerStatus"><span class="dot red"></span>Offline</div>
+              </div>
+              <div class="info-cell">
+                <div class="info-key">Host</div>
+                <div class="info-val small" id="mqttHostDisplay">--</div>
+              </div>
+              <div class="info-cell">
+                <div class="info-key">Last Message</div>
+                <div class="info-val" id="lastMsg">--</div>
+              </div>
+              <div class="info-cell">
+                <div class="info-key">Total Pesan</div>
+                <div class="info-val" id="mqttMsgCount">0</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Rentang RPM Sesi Ini</div>
+            <div class="rpm-range">
+              <div>
+                <div class="range-lbl">MIN</div>
+                <div class="range-val green" id="rpmMin">0</div>
+                <div class="range-unit">rpm</div>
+              </div>
+              <div class="range-sep">—</div>
+              <div>
+                <div class="range-lbl">MAX</div>
+                <div class="range-val red" id="rpmMax">0</div>
+                <div class="range-unit">rpm</div>
+              </div>
+            </div>
+            <div class="divider"></div>
+            <div class="last-upd">Updated: <span id="lastUpdate">--</span></div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ==================== HALAMAN: TIPE FUZZY ==================== -->
+      <div id="page-fuzzy" class="page">
+
+        <!-- Sub-halaman: Mamdani -->
+        <div id="fuzzy-mamdani" class="fuzzy-sub-page" style="display:none">
+          <div class="page-head mb-16">
+            <div>
+              <div class="fuzzy-breadcrumb">Tipe Fuzzy › Mamdani</div>
+              <div class="section-title">Fuzzy Mamdani</div>
+              <div class="section-sub">Analisis Respons Sistem (Live Oscilloscope)</div>
+            </div>
+          </div>
+
+          <div class="grid2 mb-16">
+            <div class="card">
+              <div class="section-head mb-12">
+                <div>
+                  <div class="card-title">Kurva Respons Motor</div>
+                  <div style="font-family:'Rajdhani',sans-serif;font-size:16px;font-weight:700;color:#7dd3fc;">Mamdani (Live 60s Buffer)</div>
+                </div>
+              </div>
+              <div class="chart-wrap"><canvas id="chartMamdani"></canvas></div>
+            </div>
+
+            <div class="card">
+              <div class="card-title mb-8">Membership Function — Input Error</div>
+              <div class="mf-chips mb-8">
+                <span class="mf-chip" style="border-color:#ef4444;color:#ef4444">NB</span>
+                <span class="mf-chip" style="border-color:#f97316;color:#f97316">NS</span>
+                <span class="mf-chip" style="border-color:#10b981;color:#10b981">Z</span>
+                <span class="mf-chip" style="border-color:#3b82f6;color:#3b82f6">PS</span>
+                <span class="mf-chip" style="border-color:#8b5cf6;color:#8b5cf6">PB</span>
+              </div>
+              <div class="chart-wrap"><canvas id="mfMamdani"></canvas></div>
+              <div class="chart-meta">Domain: -100 s.d 100 (Trapezoidal Shoulder)</div>
+            </div>
+          </div>
+
+          <div class="card mb-16">
+            <div class="card-title mb-12">Matriks Rule Base — Mamdani</div>
+            <div class="tbl-wrap"><table class="rule-tbl" id="ruleMamdani"></table></div>
+          </div>
+
+          <div class="card">
+            <div class="card-title mb-12">Metrik Performa Aktual — Mamdani</div>
+            <div class="tbl-wrap">
+              <table class="glass-table">
+                <thead>
+                  <tr><th>Beban</th><th>Rise Time</th><th>Max Overshoot</th><th>Rata-rata SSE</th><th>Metode</th></tr>
+                </thead>
+                <tbody id="metricMBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sub-halaman: Sugeno -->
+        <div id="fuzzy-sugeno" class="fuzzy-sub-page" style="display:none">
+          <div class="page-head mb-16">
+            <div>
+              <div class="fuzzy-breadcrumb">Tipe Fuzzy › Sugeno</div>
+              <div class="section-title">Fuzzy Sugeno</div>
+              <div class="section-sub">Analisis Respons Sistem (Live Oscilloscope)</div>
+            </div>
+          </div>
+
+          <div class="grid2 mb-16">
+            <div class="card">
+              <div class="section-head mb-12">
+                <div>
+                  <div class="card-title">Kurva Respons Motor</div>
+                  <div style="font-family:'Rajdhani',sans-serif;font-size:16px;font-weight:700;color:#6ee7b7;">Sugeno (Live 60s Buffer)</div>
+                </div>
+              </div>
+              <div class="chart-wrap"><canvas id="chartSugeno"></canvas></div>
+            </div>
+
+            <div class="card">
+              <div class="card-title mb-8">Membership Function — Input Error</div>
+              <div class="mf-chips mb-8">
+                <span class="mf-chip" style="border-color:#ef4444;color:#ef4444">NB</span>
+                <span class="mf-chip" style="border-color:#f97316;color:#f97316">NS</span>
+                <span class="mf-chip" style="border-color:#10b981;color:#10b981">Z</span>
+                <span class="mf-chip" style="border-color:#3b82f6;color:#3b82f6">PS</span>
+                <span class="mf-chip" style="border-color:#8b5cf6;color:#8b5cf6">PB</span>
+              </div>
+              <div class="chart-wrap"><canvas id="mfSugeno"></canvas></div>
+              <div class="chart-meta">Domain: -100 s.d 100 (Trapezoidal Shoulder)</div>
+            </div>
+          </div>
+
+          <div class="card mb-16">
+            <div class="card-title mb-12">Matriks Rule Base — Sugeno</div>
+            <div class="tbl-wrap"><table class="rule-tbl" id="ruleSugeno"></table></div>
+          </div>
+
+          <div class="card">
+            <div class="card-title mb-12">Metrik Performa Aktual — Sugeno</div>
+            <div class="tbl-wrap">
+              <table class="glass-table">
+                <thead>
+                  <tr><th>Beban</th><th>Rise Time</th><th>Max Overshoot</th><th>Rata-rata SSE</th><th>Metode</th></tr>
+                </thead>
+                <tbody id="metricSBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sub-halaman: Perbandingan Mamdani vs Sugeno -->
+        <div id="fuzzy-compare" class="fuzzy-sub-page" style="display:none">
+          <div class="page-head mb-16">
+            <div>
+              <div class="fuzzy-breadcrumb">Tipe Fuzzy › Perbandingan</div>
+              <div class="section-title">Mamdani vs Sugeno</div>
+              <div class="section-sub">Komparasi Osiloskop Live</div>
+            </div>
+          </div>
+
+          <div class="grid2 mb-16">
+            <div class="card">
+              <div class="section-head mb-12">
+                <div class="card-title" style="margin-bottom:0">Grafik Live</div>
+                <span class="badge badge-blue">Mamdani</span>
+              </div>
+              <div class="chart-wrap"><canvas id="chartCmpM"></canvas></div>
+            </div>
+            <div class="card">
+              <div class="section-head mb-12">
+                <div class="card-title" style="margin-bottom:0">Grafik Live</div>
+                <span class="badge badge-green">Sugeno</span>
+              </div>
+              <div class="chart-wrap"><canvas id="chartCmpS"></canvas></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title mb-12">Tabel Rekapitulasi Perbandingan</div>
+            <div class="tbl-wrap">
+              <table class="glass-table">
+                <thead>
+                  <tr><th>Beban</th><th>Max Overshoot (M)</th><th>Max Overshoot (S)</th><th>Avg SSE (M)</th><th>Avg SSE (S)</th><th>Lebih Stabil</th></tr>
+                </thead>
+                <tbody id="metricCmpBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ==================== HALAMAN: TELEMETRY ==================== -->
+      <div id="page-telemetry" class="page">
+
+        <!-- Judul + tombol import/export/reset data -->
+        <div class="page-head mb-16">
+          <div>
+            <div class="section-title">Telemetry</div>
+            <div class="section-sub">Riwayat pengukuran dan ekspor data</div>
+          </div>
+          <div class="flex gap-8">
+            <button class="btn btn-ghost" onclick="triggerImport()">📂 Import CSV</button>
+            <button class="btn btn-primary" onclick="exportCSV()">⬇ Ekspor CSV</button>
+            <button class="btn btn-red" onclick="resetTelemetry()">🗑 Reset Data</button>
+          </div>
+          <!-- Input file tersembunyi, dipicu lewat tombol Import CSV di atas -->
+          <input type="file" id="csvImport" accept=".csv" style="display:none" onchange="handleImport(event)">
+        </div>
+
+        <!-- Ringkasan statistik data -->
+        <div class="grid4 mb-16">
+          <div class="metric-card">
+            <div class="mc-label">Total Data</div>
+            <div class="mc-value" id="statTotal">0</div>
+            <div class="mc-unit">sampel</div>
+          </div>
+          <div class="metric-card green">
+            <div class="mc-label">Avg RPM</div>
+            <div class="mc-value" id="statAvgRPM">0</div>
+            <div class="mc-unit">rpm rata-rata</div>
+          </div>
+          <div class="metric-card amber">
+            <div class="mc-label">Avg Error Mamdani</div>
+            <div class="mc-value" id="statErrM">0%</div>
+            <div class="mc-unit">steady-state error</div>
+          </div>
+          <div class="metric-card">
+            <div class="mc-label">Avg Error Sugeno</div>
+            <div class="mc-value" id="statErrS">0%</div>
+            <div class="mc-unit">steady-state error</div>
+          </div>
+        </div>
+
+        <!-- Tabel log data lengkap -->
+        <div class="card">
+          <div class="section-head mb-12">
+            <div class="card-title" style="margin-bottom:0">Tabel Log Aktual</div>
+            <span class="badge badge-cyan" id="dataCount">0 entri</span>
+          </div>
+          <div class="tbl-wrap">
+            <table class="glass-table">
+              <thead>
+                <tr><th>#</th><th>Waktu Lokal</th><th>RPM</th><th>Setpoint</th><th>PWM</th><th>Error (RPM)</th><th>Overshoot (%)</th><th>Tipe Fuzzy</th><th>Beban</th></tr>
+              </thead>
+              <tbody id="dataTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ==================== HALAMAN: PENGATURAN SISTEM ==================== -->
+      <div id="page-pengaturan" class="page">
+
+        <div class="page-head mb-16">
+          <div>
+            <div class="section-title">Pengaturan Sistem</div>
+            <div class="section-sub">Set parameter dan kirim perintah via HiveMQ</div>
+          </div>
+          <span id="motorStatusBadge" class="badge badge-red">● Stopped</span>
+        </div>
+
+        <div class="grid2">
+
+          <!-- Kolom kiri: Setpoint, Tipe Fuzzy, Konfigurasi MQTT -->
+          <div class="flex flex-col gap-16">
+
+            <!-- Pengaturan Setpoint RPM -->
+            <div class="card">
+              <div class="card-title mb-12">Set Setpoint RPM</div>
+
+              <div class="slider-header mb-16" style="border-bottom: 1px solid rgba(224,197,143,0.15); padding-bottom: 8px;">
+                <span class="slider-lbl">Setpoint RPM Aktif</span>
+                <span class="slider-val" id="spRPMVal">100</span>
+              </div>
+
+              <div class="input-label mt-8">Input Manual (rpm)</div>
+              <div class="flex gap-8">
+                <input type="number" class="glass-input flex-1" id="spRPMInput" value="100" min="0" max="450">
+                <button class="btn btn-primary" onclick="confirmSetpoint()">OK</button>
+              </div>
+              <div class="motor-hint mt-8 text-left">Tekan <b>OK</b> untuk mengirim Setpoint baru.</div>
+            </div>
+
+            <!-- Pemilihan tipe fuzzy controller -->
+            <div class="card">
+              <div class="card-title mb-12">Tipe Fuzzy Controller</div>
+              <div class="fuzzy-toggle">
+                <div class="fuzzy-opt" id="fuzzyOptM" onclick="selectFuzzyType('mamdani')">
+                  <div class="fo-icon">🔵</div>
+                  <div>
+                    <div class="fo-name" id="foNameM">Mamdani</div>
+                    <div class="fo-desc">Defuzzifikasi: Centroid</div>
+                  </div>
+                  <div class="fo-check" id="checkM" style="opacity:0">✓</div>
+                </div>
+                <div class="fuzzy-opt selected-green" id="fuzzyOptS" onclick="selectFuzzyType('sugeno')">
+                  <div class="fo-icon">🟢</div>
+                  <div>
+                    <div class="fo-name" id="foNameS" style="color:#6ee7b7">Sugeno</div>
+                    <div class="fo-desc">Defuzzifikasi: Weighted Average</div>
+                  </div>
+                  <div class="fo-check" id="checkS" style="opacity:1">✓</div>
+                </div>
+              </div>
+              <!-- Input tersembunyi untuk menyimpan tipe fuzzy yang aktif -->
+              <input type="hidden" id="fuzzyType" value="sugeno">
+            </div>
+
+            <!-- Konfigurasi koneksi MQTT broker -->
+            <div class="card">
+              <div class="card-title mb-12">Konfigurasi MQTT Broker</div>
+              <div class="form-grid">
+                <div>
+                  <div class="input-label">Host</div>
+                  <input type="text" class="glass-input" id="mqttHost" value="135840675bac493eb6c27870dd01f4fb.s1.eu.hivemq.cloud">
+                </div>
+                <div>
+                  <div class="input-label">Port WSS (TLS)</div>
+                  <input type="number" class="glass-input" id="mqttPort" value="8884">
+                </div>
+                <div>
+                  <div class="input-label">Username</div>
+                  <input type="text" class="glass-input" id="mqttUser" value="bldcadmin">
+                </div>
+                <div>
+                  <div class="input-label">Password</div>
+                  <input type="password" class="glass-input" id="mqttPass" value="Bldc_PNJ_123!">
+                </div>
+              </div>
+              <div class="flex gap-10 mt-16 flex-wrap">
+                <button class="btn btn-primary" onclick="connectMQTT()">🔌 Connect</button>
+                <button class="btn btn-red" onclick="disconnectMQTT()">✖ Disconnect</button>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Kolom kanan: Status sistem, OTA update, preview MQTT publish -->
+          <div class="flex flex-col gap-16">
+
+            <!-- Status sistem dan tombol start/stop motor -->
+            <div class="card">
+              <div class="card-title mb-12">Status Sistem &amp; Aksi</div>
+              <div class="info-grid mb-16" style="grid-template-columns:1fr 1fr">
+                <div class="info-cell">
+                  <div class="info-key">Motor</div>
+                  <div class="info-val" id="motorStatusText"><span class="dot red"></span>Stopped</div>
+                </div>
+                <div class="info-cell">
+                  <div class="info-key">Setpoint Aktif</div>
+                  <div class="info-val" id="activeSetpoint">0 RPM</div>
+                </div>
+                <div class="info-cell">
+                  <div class="info-key">Fuzzy Aktif</div>
+                  <div class="info-val" id="activeFuzzy">Sugeno</div>
+                </div>
+                <div class="info-cell">
+                  <div class="info-key">Level Beban</div>
+                  <div class="info-val" id="activeLevel">N</div>
+                </div>
+              </div>
+              <button class="motor-btn motor-run mb-12" onclick="runMotor()">▶ Start Motor</button>
+              <button class="motor-btn motor-stop" onclick="askStop()">■ Stop Motor</button>
+            </div>
+
+            <!-- Update firmware ESP32 secara OTA (nirkabel) -->
+            <div class="card">
+              <div class="card-title mb-12">Pembaruan Sistem (OTA Web)</div>
+              <p style="font-size: 12px; color: var(--text-mid); line-height: 1.6; margin-bottom: 12px;">
+                Unggah program ESP32 <b>(.bin)</b> secara nirkabel. Pastikan laptop/HP dan ESP32 berada di jaringan WiFi yang sama.
+              </p>
+              <ol style="font-size: 11px; color: var(--text-lo); margin-left: 16px; margin-bottom: 14px; line-height: 1.6;">
+                <li>Di Arduino IDE, klik menu <b>Sketch ➔ Export compiled Binary</b>.</li>
+                <li>Cek IP Address ESP32 di Serial Monitor (atau setting router).</li>
+                <li>Masukkan IP tersebut ke kolom di bawah, lalu klik <b>Buka Portal</b>.</li>
+                <li>Pada tab baru, pilih file <i>.bin</i> tadi dan klik <b>Upload</b>.</li>
+              </ol>
+              <div class="flex gap-8">
+                <input type="text" class="glass-input flex-1" id="otaIpAddress" placeholder="Contoh IP: 192.168.1.15">
+                <button class="btn btn-primary" onclick="openOTAPortal()">Buka Portal</button>
+              </div>
+            </div>
+
+            <!-- Preview data yang akan dikirim ke topic MQTT -->
+            <div class="card">
+              <div class="card-title mb-8">MQTT Publish Preview</div>
+              <div class="mqtt-preview">
+                <div class="mp-section-label">→ bldc/control/start / stop</div>
+                <div class="mp-line"><span class="mp-green" id="prevStart">0 (Stop)</span></div>
+                <div class="mp-divider"></div>
+
+                <div class="mp-section-label">→ bldc/control/setpoint</div>
+                <div class="mp-line"><span class="mp-green" id="prevSetpoint">0</span></div>
+                <div class="mp-divider"></div>
+
+                <div class="mp-section-label">→ bldc/control/fuzzy</div>
+                <div class="mp-line"><span class="mp-yellow" id="prevFuzzy">sugeno</span></div>
+                <div class="mp-divider"></div>
+
+                <div class="mp-section-label">→ bldc/control/level</div>
+                <div class="mp-line"><span class="mp-green" id="prevLevel">N</span></div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ==================== HALAMAN: PANDUAN & DOKUMENTASI ==================== -->
+      <div id="page-panduan" class="page">
+
+        <div class="page-head mb-16">
+          <div>
+            <div class="section-title">Panduan Operasional & Dokumen</div>
+            <div class="section-sub">SOP Alat, Konfigurasi Jaringan, dan Akses Laporan Tugas Akhir</div>
+          </div>
+        </div>
+
+        <div class="grid2 mb-16">
+
+          <!-- Kolom kiri: konfigurasi WiFi dan SOP menjalankan alat -->
+          <div class="flex flex-col gap-16">
+
+            <div class="card">
+              <div class="card-title mb-12">Konfigurasi WiFi (Tanpa Kabel)</div>
+              <p style="font-size: 12px; color: var(--text-mid); line-height: 1.6; margin-bottom: 12px;">
+                Jika ESP32 tidak terhubung internet, ikuti langkah berikut:
+              </p>
+              <ol style="font-size: 13px; color: var(--text-hi); margin-left: 16px; line-height: 1.8;">
+                <li>Nyalakan daya ESP32.</li>
+                <li>Buka pengaturan WiFi di HP/Laptop, cari jaringan bernama <b style="color:#67e8f9">ESP32_BLDC_Config</b>.</li>
+                <li>Masukkan password: <b style="color:#6ee7b7">Admin123</b>.</li>
+                <li>Layar HP otomatis membuka Portal Setup. Klik tombol <b>Configure WiFi</b>.</li>
+                <li>Pilih jaringan WiFi yang diinginkan, masukkan password WiFi tersebut, lalu klik <b>Save</b>.</li>
+                <li>ESP32 akan merestart dan otomatis terhubung ke internet.</li>
+              </ol>
+            </div>
+
+            <div class="card flex-1">
+              <div class="card-title mb-12">Prosedur Menjalankan Alat (SOP)</div>
+              <ol style="font-size: 13px; color: var(--text-hi); margin-left: 16px; line-height: 1.8;">
+                <li>
+                  Pastikan web terhubung ke broker MQTT. Buka menu <b>Pengaturan Sistem</b>, isi data berikut, lalu klik <span style="font-weight:bold; color:var(--text-hi);">Connect</span>:
+                  <ul style="list-style-type: disc; margin-left: 20px; margin-top: 4px; margin-bottom: 4px; color: var(--text-mid);">
+                    <li><b>Host:</b> 135840675bac493eb6c27870dd01f4fb.s1.eu.hivemq.cloud</li>
+                    <li><b>Port WSS:</b> 8884</li>
+                    <li><b>Username:</b> bldcadmin</li>
+                    <li><b>Password:</b> Bldc_PNJ_123!</li>
+                  </ul>
+                  Pastikan indikator MQTT di sudut kanan atas web berubah menjadi <span class="badge badge-green" style="padding:1px 6px">Online</span>.
+                </li>
+                <li>Nyalakan saklar/MCB Power Supply 48V yang terhubung ke Motor Controller (ESC).</li>
+                <li>Di menu <b>Pengaturan</b>, tentukan target putaran pada <b>Setpoint RPM</b>.</li>
+                <li>Pilih jenis kendali (<b>Mamdani</b> atau <b>Sugeno</b>).</li>
+                <li>Pilih kondisi pembebanan pengereman (Load 1 / 2 / 3 / 0).</li>
+                <li>Tekan tombol <span style="color:#6ee7b7; font-weight:bold;">▶ Start Motor</span>.</li>
+                <li>Pantau kestabilan motor di tab <b>Tipe Fuzzy</b> atau <b>Dashboard</b>.</li>
+                <li>Jika sudah selesai, wajib tekan tombol <span style="color:#fca5a5; font-weight:bold;">■ Stop Motor</span>.</li>
+              </ol>
+            </div>
+
+          </div>
+
+          <!-- Kolom kanan: link laporan TA dan flowchart sistem -->
+          <div class="flex flex-col gap-16">
+
+            <div class="card">
+              <div class="card-title mb-12">Laporan Tugas Akhir</div>
+              <p style="font-size: 12px; color: var(--text-mid); line-height: 1.6; margin-bottom: 16px;">
+                Akses dokumen lengkap laporan Tugas Akhir.
+              </p>
+              <a href="https://drive.google.com/drive/folders/1ukM_VbB66TFeXou51Qkf6rYbYVdDC6_q?usp=sharing" target="_blank" style="text-decoration: none;">
+                <button class="btn btn-primary" style="width: 100%; justify-content: center; padding: 14px; font-size: 15px;">
+                  <span style="font-size: 18px; margin-right: 8px;">📂</span> Buka Dokumen (Google Drive)
+                </button>
+              </a>
+            </div>
+
+            <div class="card flex-1">
+              <div class="card-title mb-12">Flowchart Sistem Adaptive</div>
+              <div style="background: rgba(0,0,0,0.3); border-radius: 8px; padding: 10px; text-align: center; border: 1px solid var(--border);">
+                <img src="assets/flowchart.png" alt="Flowchart Sistem" style="width: 100%; max-width: 400px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.4);">
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+
+    </main>
   </div>
-</div>
 
-</main>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-<script src="js/app.js"></script>
+  <!-- Library eksternal: Chart.js untuk grafik, MQTT.js untuk koneksi broker -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <!-- File JS utama -->
+  <script src="js/app.js"></script>
 </body>
 </html>
