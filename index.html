@@ -57,7 +57,6 @@
 <div class="app-body">
 <main class="main">
 
-<!-- ==================== PAGE: DASHBOARD ==================== -->
 <div id="page-dashboard" class="page active">
   <div class="page-head mb-16">
     <div>
@@ -79,6 +78,16 @@
     <div class="metric-card amber"><div class="mc-glow" style="background:radial-gradient(#f59e0b,transparent)"></div><div class="mc-label">Overshoot</div><div class="mc-value" id="overshootVal">0</div><div class="mc-unit">%</div><div class="mc-bar"><div class="mc-bar-fill amber" id="barOvershoot" style="width:0%"></div></div></div>
   </div>
 
+  <div class="card mb-16">
+    <div class="card-title mb-12">Kontrol Pembebanan (Servo)</div>
+    <div class="level-btns">
+      <button class="level-btn" onclick="selectLevel('1', this)"><div class="lb-icon">⚡</div>Load 1<br><span class="lb-sub">25%</span></button>
+      <button class="level-btn" onclick="selectLevel('2', this)"><div class="lb-icon">⚡⚡</div>Load 2<br><span class="lb-sub">50%</span></button>
+      <button class="level-btn" onclick="selectLevel('3', this)"><div class="lb-icon">⚡⚡⚡</div>Load 3<br><span class="lb-sub">75%</span></button>
+      <button class="level-btn active" onclick="selectLevel('N', this)"><div class="lb-icon">⏸</div>0 Load<br><span class="lb-sub">0%</span></button>
+    </div>
+  </div>
+
   <div class="dash-row mb-16">
     <div class="card dash-chart">
       <div class="section-head">
@@ -87,6 +96,7 @@
       </div>
       <div class="chart-wrap"><canvas id="rpmChart"></canvas></div>
     </div>
+    
     <div class="card dash-gauge">
       <div class="card-title">Speedometer</div>
       <div class="gauge-wrap" style="height: 190px;"><canvas id="gaugeChart"></canvas></div>
@@ -113,6 +123,7 @@
         <div class="info-cell"><div class="info-key">Total Pesan</div><div class="info-val" id="mqttMsgCount">0</div></div>
       </div>
     </div>
+
     <div class="card">
       <div class="card-title">Rentang RPM Sesi Ini</div>
       <div class="rpm-range">
@@ -123,7 +134,6 @@
       <div class="divider"></div><div class="last-upd">Updated: <span id="lastUpdate">--</span></div>
     </div>
   </div>
-  <!-- NOTE: KARTU STATUS ESP32 RESMI DIHAPUS DARI SINI -->
 </div>
 
 <!-- ==================== PAGE: TIPE FUZZY ==================== -->
@@ -289,16 +299,6 @@
       </div>
 
       <div class="card">
-        <div class="card-title mb-12">Kondisi Pembebanan</div>
-        <div class="level-btns">
-          <button class="level-btn" onclick="selectLevel('1', this)"><div class="lb-icon">⚡</div>Load 1<br><span class="lb-sub">25%</span></button>
-          <button class="level-btn" onclick="selectLevel('2', this)"><div class="lb-icon">⚡⚡</div>Load 2<br><span class="lb-sub">50%</span></button>
-          <button class="level-btn" onclick="selectLevel('3', this)"><div class="lb-icon">⚡⚡⚡</div>Load 3<br><span class="lb-sub">75%</span></button>
-          <button class="level-btn active" onclick="selectLevel('N', this)"><div class="lb-icon">⏸</div>0 Load<br><span class="lb-sub">0%</span></button>
-        </div>
-      </div>
-
-      <div class="card">
         <div class="card-title mb-12">Konfigurasi MQTT Broker</div>
         <div class="form-grid">
           <div><div class="input-label">Host</div><input type="text" class="glass-input" id="mqttHost" value="135840675bac493eb6c27870dd01f4fb.s1.eu.hivemq.cloud"></div>
@@ -323,17 +323,7 @@
         </div>
         <button class="motor-btn motor-run mb-12" onclick="runMotor()">▶ Start Motor</button>
         <button class="motor-btn motor-stop" onclick="askStop()">■ Stop Motor</button>
-      </div>
-
-      <div class="card flex-1">
-        <div class="card-title mb-12">Monitor RPM Live</div>
-        <div class="chart-wrap" style="height:160px;min-height:160px"><canvas id="miniRpmChart"></canvas></div>
-        <div class="mini-footer">
-          <span>RPM: <span class="val-cyan" id="miniRpmVal">0</span></span>
-          <span>PWM: <span class="val-green" id="miniPwmVal">103</span></span>
-          <span>Overshoot: <span class="val-amber" id="miniOvershootVal">0</span>%</span>
-        </div>
-      </div>    
+      </div> 
 
       <div class="card">
         <div class="card-title mb-12">Pembaruan Sistem (OTA Web)</div>
