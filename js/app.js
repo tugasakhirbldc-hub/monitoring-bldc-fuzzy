@@ -378,21 +378,21 @@ function processIncomingData(rpm, pwm, error, level) {
 
   if (gaugeChart) { const val = Math.min(rpm, 450); gaugeChart.data.datasets[0].data = [val, 450 - val]; gaugeChart.update(); }
 
-  // ==========================================
-  // FITUR BARU: AUTO-ZOOM Y-AXIS (TRANSIEN VS STABIL)
+// ==========================================
+  // AUTO-ZOOM Y-AXIS (TRANSIEN VS STABIL)
   // ==========================================
   let yMin = 0;
   let yMax = 100;
 
   if (currentSetpointVal > 0) {
     if (isRising) {
-      // Fase Transien (Mendaki): Grafik terlihat penuh dari 0 sampai batas aman
+      // Fase Transien (Mendaki): Grafik terlihat penuh dari 0
       yMin = 0;
       yMax = currentSetpointVal + 50;
     } else {
-      // Fase Stabil: Auto-Zoom pada area Setpoint +- 15 RPM
-      yMin = Math.max(0, currentSetpointVal - 15); // Pastikan tidak minus
-      yMax = currentSetpointVal + 15;
+      // Fase Stabil: Auto-Zoom pada area Setpoint +- 50 RPM (Diperlebar agar visual lebih mulus)
+      yMin = Math.max(0, currentSetpointVal - 50); // Pastikan tidak minus
+      yMax = currentSetpointVal + 50;
     }
   }
 
