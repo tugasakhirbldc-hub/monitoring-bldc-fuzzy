@@ -430,6 +430,15 @@ function processIncomingData(rpm, pwm, error, level) {
     if (cCmpS)  { cCmpS.options.scales.y.min = yMin; cCmpS.options.scales.y.max = yMax; cCmpS.data.labels = liveHistoryLbl; cCmpS.data.datasets[0].data = liveHistoryRpm; cCmpS.data.datasets[1].data = liveHistorySp; cCmpS.update('none'); }
   }
 
+  // Perhitungan Error Instan (Setpoint - RPM Aktual)
+  let errorInstan = currentSetpointVal - rpm;
+
+  // Update UI
+  safeSet('mErrorInstan', errorInstan.toFixed(1));
+  // Memetakan error ke lebar bar (gunakan Math.abs agar bar tetap muncul jika error minus)
+  safeStyle('barErrorInstan', 'width', Math.min(Math.abs(errorInstan) / (currentSetpointVal || 1) * 100, 100) + '%');
+
+  
   logTelemetry(rpm, pwm, steadyStateError, overshoot, activeFuzzyVal, level);
 }
 
