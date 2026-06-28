@@ -49,7 +49,8 @@
       </div>
     </div>
     <div class="nav-item" onclick="showPage('telemetry', this)"><span class="nav-icon">📋</span> Telemetry</div>
-    <div class="nav-item" onclick="showPage('kontrol', this)"><span class="nav-icon">⚙️</span> Kontrol Motor &amp; MQTT</div>
+    <div class="nav-item" onclick="showPage('pengaturan', this)"><span class="nav-icon">⚙️</span> Pengaturan Sistem</div>
+    <div class="nav-item" onclick="showPage('panduan', this)"><span class="nav-icon">📖</span> Panduan & Dokumen</div>
   </nav>
 </header>
 
@@ -251,22 +252,28 @@
   </div>
 </div>
 
-<!-- ==================== PAGE: KONTROL ==================== -->
-<div id="page-kontrol" class="page">
+<!-- ==================== PAGE: PENGATURAN SISTEM ==================== -->
+
+<div id="page-pengaturan" class="page">
   <div class="page-head mb-16">
-    <div><div class="section-title">Kontrol Motor &amp; MQTT</div><div class="section-sub">Set parameter dan kirim perintah via HiveMQ</div></div>
+    <div><div class="section-title">Pengaturan Sistem</div><div class="section-sub">Set parameter dan kirim perintah via HiveMQ</div></div>
     <span id="motorStatusBadge" class="badge badge-red">● Stopped</span>
   </div>
 
-  <div class="kontrol-grid">
+  <div class="grid2">
     <div class="flex flex-col gap-16">
+      
       <div class="card">
         <div class="card-title mb-12">Set Setpoint RPM</div>
-        <div class="slider-header"><span class="slider-lbl">Setpoint RPM</span><span class="slider-val" id="spRPMVal">100</span></div>
-        <input type="range" class="glass-range" id="spRPM" min="0" max="450" step="1" value="100" oninput="syncSliderUI()">
+        
+        <div class="slider-header mb-16" style="border-bottom: 1px solid rgba(224,197,143,0.15); padding-bottom: 8px;">
+          <span class="slider-lbl">Setpoint RPM Aktif</span>
+          <span class="slider-val" id="spRPMVal">100</span>
+        </div>
+        
         <div class="input-label mt-8">Input Manual (rpm)</div>
         <div class="flex gap-8">
-          <input type="number" class="glass-input flex-1" id="spRPMInput" value="100" min="0" max="450" oninput="syncInputUI()">
+          <input type="number" class="glass-input flex-1" id="spRPMInput" value="100" min="0" max="450">
           <button class="btn btn-primary" onclick="confirmSetpoint()">OK</button>
         </div>
         <div class="motor-hint mt-8 text-left">Tekan <b>OK</b> untuk mengirim Setpoint baru.</div>
@@ -292,16 +299,6 @@
       </div>
 
       <div class="card">
-        <div class="card-title mb-8">MQTT Publish Preview</div>
-        <div class="mqtt-preview">
-          <div class="mp-section-label">→ bldc/control/start / stop</div><div class="mp-line"><span class="mp-green" id="prevStart">0 (Stop)</span></div><div class="mp-divider"></div>
-          <div class="mp-section-label">→ bldc/control/setpoint</div><div class="mp-line"><span class="mp-green" id="prevSetpoint">0</span></div><div class="mp-divider"></div>
-          <div class="mp-section-label">→ bldc/control/fuzzy</div><div class="mp-line"><span class="mp-yellow" id="prevFuzzy">sugeno</span></div><div class="mp-divider"></div>
-          <div class="mp-section-label">→ bldc/control/level</div><div class="mp-line"><span class="mp-green" id="prevLevel">N</span></div>
-        </div>
-      </div>
-
-      <div class="card">
         <div class="card-title mb-12">Konfigurasi MQTT Broker</div>
         <div class="form-grid">
           <div><div class="input-label">Host</div><input type="text" class="glass-input" id="mqttHost" value="135840675bac493eb6c27870dd01f4fb.s1.eu.hivemq.cloud"></div>
@@ -314,9 +311,8 @@
           <button class="btn btn-red" onclick="disconnectMQTT()">✖ Disconnect</button>
         </div>
       </div>
-    </div>
-
-    <div class="flex flex-col gap-16">
+    </div> <div class="flex flex-col gap-16">
+      
       <div class="card">
         <div class="card-title mb-12">Status Sistem &amp; Aksi</div>
         <div class="info-grid mb-16" style="grid-template-columns:1fr 1fr">
@@ -336,6 +332,109 @@
           <span>RPM: <span class="val-cyan" id="miniRpmVal">0</span></span>
           <span>PWM: <span class="val-green" id="miniPwmVal">103</span></span>
           <span>Overshoot: <span class="val-amber" id="miniOvershootVal">0</span>%</span>
+        </div>
+      </div>    
+
+      <div class="card">
+        <div class="card-title mb-12">Pembaruan Sistem (OTA Web)</div>
+        <p style="font-size: 12px; color: var(--text-mid); line-height: 1.6; margin-bottom: 12px;">
+          Unggah program ESP32 <b>(.bin)</b> secara nirkabel. Pastikan laptop/HP dan ESP32 berada di jaringan WiFi yang sama.
+        </p>
+        <ol style="font-size: 11px; color: var(--text-lo); margin-left: 16px; margin-bottom: 14px; line-height: 1.6;">
+          <li>Di Arduino IDE, klik menu <b>Sketch ➔ Export compiled Binary</b>.</li>
+          <li>Cek IP Address ESP32 di Serial Monitor (atau setting router).</li>
+          <li>Masukkan IP tersebut ke kolom di bawah, lalu klik <b>Buka Portal</b>.</li>
+          <li>Pada tab baru, pilih file <i>.bin</i> tadi dan klik <b>Upload</b>.</li>
+        </ol>
+        <div class="flex gap-8">
+          <input type="text" class="glass-input flex-1" id="otaIpAddress" placeholder="Contoh IP: 192.168.1.15">
+          <button class="btn btn-primary" onclick="openOTAPortal()">Buka Portal</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title mb-8">MQTT Publish Preview</div>
+        <div class="mqtt-preview">
+          <div class="mp-section-label">→ bldc/control/start / stop</div><div class="mp-line"><span class="mp-green" id="prevStart">0 (Stop)</span></div><div class="mp-divider"></div>
+          <div class="mp-section-label">→ bldc/control/setpoint</div><div class="mp-line"><span class="mp-green" id="prevSetpoint">0</span></div><div class="mp-divider"></div>
+          <div class="mp-section-label">→ bldc/control/fuzzy</div><div class="mp-line"><span class="mp-yellow" id="prevFuzzy">sugeno</span></div><div class="mp-divider"></div>
+          <div class="mp-section-label">→ bldc/control/level</div><div class="mp-line"><span class="mp-green" id="prevLevel">N</span></div>
+        </div>
+      </div>
+
+    </div> </div> </div>
+
+<!-- ==================== PAGE: PANDUAN & DOKUMENTASI ==================== -->
+
+<div id="page-panduan" class="page">
+  <div class="page-head mb-16">
+    <div>
+      <div class="section-title">Panduan Operasional & Dokumen</div>
+      <div class="section-sub">SOP Alat, Konfigurasi Jaringan, dan Akses Laporan Tugas Akhir</div>
+    </div>
+  </div>
+
+  <div class="grid2 mb-16">
+    <div class="flex flex-col gap-16">
+      
+      <div class="card">
+        <div class="card-title mb-12">Konfigurasi WiFi (Tanpa Kabel)</div>
+        <p style="font-size: 12px; color: var(--text-mid); line-height: 1.6; margin-bottom: 12px;">
+          Jika ESP32 tidak terhubung internet, ikuti langkah berikut:
+        </p>
+        <ol style="font-size: 13px; color: var(--text-hi); margin-left: 16px; line-height: 1.8;">
+          <li>Nyalakan daya ESP32.</li>
+          <li>Buka pengaturan WiFi di HP/Laptop, cari jaringan bernama <b style="color:#67e8f9">ESP32_BLDC_Config</b>.</li>
+          <li>Masukkan password: <b style="color:#6ee7b7">Admin123</b>.</li>
+          <li>Layar HP otomatis membuka Portal Setup. Klik tombol <b>Configure WiFi</b>.</li>
+          <li>Pilih jaringan WiFi yang diinginkan, masukkan password WiFi tersebut, lalu klik <b>Save</b>.</li>
+          <li>ESP32 akan merestart dan otomatis terhubung ke internet.</li>
+        </ol>
+      </div>
+
+      <div class="card flex-1">
+        <div class="card-title mb-12">Prosedur Menjalankan Alat (SOP)</div>
+        <ol style="font-size: 13px; color: var(--text-hi); margin-left: 16px; line-height: 1.8;">
+          <li>
+            Pastikan web terhubung ke broker MQTT. Buka menu <b>Pengaturan Sistem</b>, isi data berikut, lalu klik <span style="font-weight:bold; color:var(--text-hi);">Connect</span>:
+            <ul style="list-style-type: disc; margin-left: 20px; margin-top: 4px; margin-bottom: 4px; color: var(--text-mid);">
+              <li><b>Host:</b> 135840675bac493eb6c27870dd01f4fb.s1.eu.hivemq.cloud</li>
+              <li><b>Port WSS:</b> 8884</li>
+              <li><b>Username:</b> bldcadmin</li>
+              <li><b>Password:</b> Bldc_PNJ_123!</li>
+            </ul>
+            Pastikan indikator MQTT di sudut kanan atas web berubah menjadi <span class="badge badge-green" style="padding:1px 6px">Online</span>.
+          </li>
+          <li>Nyalakan saklar/MCB Power Supply 48V yang terhubung ke Motor Controller (ESC).</li>
+          <li>Di menu <b>Pengaturan</b>, tentukan target putaran pada <b>Setpoint RPM</b>.</li>
+          <li>Pilih jenis kendali (<b>Mamdani</b> atau <b>Sugeno</b>).</li>
+          <li>Pilih kondisi pembebanan pengereman (Load 1 / 2 / 3 / 0).</li>
+          <li>Tekan tombol <span style="color:#6ee7b7; font-weight:bold;">▶ Start Motor</span>.</li>
+          <li>Pantau kestabilan motor di tab <b>Tipe Fuzzy</b> atau <b>Dashboard</b>.</li>
+          <li>Jika sudah selesai, wajib tekan tombol <span style="color:#fca5a5; font-weight:bold;">■ Stop Motor</span>.</li>
+        </ol>
+      </div>
+
+    </div>
+
+    <div class="flex flex-col gap-16">
+      
+      <div class="card">
+        <div class="card-title mb-12">Laporan Tugas Akhir</div>
+        <p style="font-size: 12px; color: var(--text-mid); line-height: 1.6; margin-bottom: 16px;">
+          Akses dokumen lengkap laporan Tugas Akhir.
+        </p>
+        <a href="https://drive.google.com/drive/folders/1ukM_VbB66TFeXou51Qkf6rYbYVdDC6_q?usp=sharing" target="_blank" style="text-decoration: none;">
+          <button class="btn btn-primary" style="width: 100%; justify-content: center; padding: 14px; font-size: 15px;">
+            <span style="font-size: 18px; margin-right: 8px;">📂</span> Buka Dokumen (Google Drive)
+          </button>
+        </a>
+      </div>
+
+      <div class="card flex-1">
+        <div class="card-title mb-12">Flowchart Sistem Adaptive</div>
+        <div style="background: rgba(0,0,0,0.3); border-radius: 8px; padding: 10px; text-align: center; border: 1px solid var(--border);">
+          <img src="assets/flowchart.png" alt="Flowchart Sistem" style="width: 100%; max-width: 400px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.4);">
         </div>
       </div>
     </div>

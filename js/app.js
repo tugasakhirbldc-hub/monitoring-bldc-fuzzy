@@ -234,23 +234,46 @@ function selectLevel(n, btn) {
 
 function runMotor() {
   if (!mqttClient || !mqttClient.connected) return alert('MQTT Belum terhubung!');
-  motorRunning = true; peakRPM = 0;
-  rpmMinVal = Infinity; rpmMaxVal = 0; safeSet('rpmMin', '0'); safeSet('rpmMax', '0');
+  
+  motorRunning = true; 
+  peakRPM = 0;
+  rpmMinVal = Infinity; 
+  rpmMaxVal = 0; 
+  safeSet('rpmMin', '0'); 
+  safeSet('rpmMax', '0');
 
   startTime = Date.now();
   sysRiseTime = 0;
   isRising = true;
 
+  // ==========================================
+  // FITUR BARU: RESET GRAFIK KE 0 
+  // ==========================================
+  rpmHistory.fill(0); 
+  rpmTimeLabels.fill(''); // Kosongkan label waktu agar tidak menumpuk
+  miniHistory.fill(0);
+
+  // Paksa membaca ulang nilai setpoint dari kotak input
+  const val = parseInt(document.getElementById('spRPMInput').value) || 100;
+  currentSetpointVal = val;
+  safeSet('spRPMVal', val); 
+  safeSet('mSetpoint', val); 
+  safeSet('activeSetpoint', val + ' RPM');
+  safeStyle('barSetpoint', 'width', Math.min((val / 450 * 100), 100) + '%');
+
   startFuzzyCapture();
 
+  // Kirim perintah Start ke ESP32
   mqttClient.publish(TOPICS.CTRL_START, '1', { qos: 1 });
   
-  // TAMBAHAN: Kirim angka 100 otomatis ke ESP32 sesaat setelah start
+  // Kirim angka setpoint otomatis ke ESP32 sesaat setelah start
   mqttClient.publish(TOPICS.CTRL_SETPOINT, String(currentSetpointVal), { qos: 1 });
   
   safeSet('prevStart', '1 (Start)');
-  safeSet('motorStatusBadge', '● Running'); document.getElementById('motorStatusBadge').className = 'badge badge-green';
-  safeSet('dashStatusBadge', '● Running'); document.getElementById('dashStatusBadge').className = 'badge badge-green';
+  safeSet('motorStatusBadge', '● Running'); 
+  document.getElementById('motorStatusBadge').className = 'badge badge-green';
+  safeSet('dashStatusBadge', '● Running'); 
+  document.getElementById('dashStatusBadge').className = 'badge badge-green';
   safeHTML('motorStatusText', '<span class="dot green"></span>Running');
 }
 
@@ -315,9 +338,16 @@ function processIncomingData(rpm, pwm, error, level) {
   let pwmPct = ((pwm - 103) / (255 - 103)) * 100;
   safeStyle('barPWM', 'width', Math.max(0, Math.min(pwmPct, 100)) + '%');
 
-  // Memasukkan array grafik utama (DENGAN TIMESTAMP X-AXIS)
+  // ==========================================
+  // FITUR BARU: FORMAT WAKTU X-AXIS (HH:MM:SS)
+  // ==========================================
+  const now = new Date();
+  const timeStr = String(now.getHours()).padStart(2, '0') + ':' +
+                  String(now.getMinutes()).padStart(2, '0') + ':' +
+                  String(now.getSeconds()).padStart(2, '0');
+
   rpmHistory.push(rpm); rpmHistory.shift();
-  rpmTimeLabels.push(new Date().toLocaleTimeString('id-ID')); rpmTimeLabels.shift();
+  rpmTimeLabels.push(timeStr); rpmTimeLabels.shift();
   miniHistory.push(rpm); miniHistory.shift();
 
   // Logika Rise Time Real-time
@@ -348,23 +378,42 @@ function processIncomingData(rpm, pwm, error, level) {
 
   if (gaugeChart) { const val = Math.min(rpm, 450); gaugeChart.data.datasets[0].data = [val, 450 - val]; gaugeChart.update(); }
 
-  // Auto-Scale Zoom Y-Axis
-  const maxNilaiData = Math.max(rpm, currentSetpointVal);
-  const dynamicYLimit = maxNilaiData === 0 ? 100 : Math.ceil(maxNilaiData * 1.15);
+  // ==========================================
+  // FITUR BARU: AUTO-ZOOM Y-AXIS (TRANSIEN VS STABIL)
+  // ==========================================
+  let yMin = 0;
+  let yMax = 100;
 
+  if (currentSetpointVal > 0) {
+    if (isRising) {
+      // Fase Transien (Mendaki): Grafik terlihat penuh dari 0 sampai batas aman
+      yMin = 0;
+      yMax = currentSetpointVal + 50;
+    } else {
+      // Fase Stabil: Auto-Zoom pada area Setpoint +- 15 RPM
+      yMin = Math.max(0, currentSetpointVal - 15); // Pastikan tidak minus
+      yMax = currentSetpointVal + 15;
+    }
+  }
+
+  // Terapkan Zoom ke Grafik Utama
   if (rpmChart) {
-    rpmChart.options.scales.y.max = dynamicYLimit;
+    rpmChart.options.scales.y.min = yMin;
+    rpmChart.options.scales.y.max = yMax;
     rpmChart.data.labels = rpmTimeLabels; // Sumbu X mendapat waktu
     rpmChart.data.datasets[0].data = rpmHistory;
     rpmChart.data.datasets[1].data = Array(30).fill(currentSetpointVal);
     rpmChart.update('none');
   }
+  
+  // Terapkan Zoom ke Mini Chart
   if (miniChart) {
-    miniChart.options.scales.y.max = dynamicYLimit;
+    miniChart.options.scales.y.min = yMin;
+    miniChart.options.scales.y.max = yMax;
     miniChart.update('none');
   }
 
-  // Freeze 60 Detik untuk Grafik Fuzzy
+  // Terapkan Zoom ke Grafik Perekaman 60-Detik Fuzzy
   if (isFuzzyRecording) {
     liveHistoryRpm.push(rpm);
     liveHistorySp.push(currentSetpointVal);
@@ -375,10 +424,10 @@ function processIncomingData(rpm, pwm, error, level) {
       isFuzzyRecording = false; // Membekukan chart setelah 60 detik
     }
 
-    if (cMPage) { cMPage.options.scales.y.max = dynamicYLimit; cMPage.data.labels = liveHistoryLbl; cMPage.data.datasets[0].data = liveHistoryRpm; cMPage.data.datasets[1].data = liveHistorySp; cMPage.update('none'); }
-    if (cSPage) { cSPage.options.scales.y.max = dynamicYLimit; cSPage.data.labels = liveHistoryLbl; cSPage.data.datasets[0].data = liveHistoryRpm; cSPage.data.datasets[1].data = liveHistorySp; cSPage.update('none'); }
-    if (cCmpM)  { cCmpM.options.scales.y.max = dynamicYLimit; cCmpM.data.labels = liveHistoryLbl; cCmpM.data.datasets[0].data = liveHistoryRpm; cCmpM.data.datasets[1].data = liveHistorySp; cCmpM.update('none'); }
-    if (cCmpS)  { cCmpS.options.scales.y.max = dynamicYLimit; cCmpS.data.labels = liveHistoryLbl; cCmpS.data.datasets[0].data = liveHistoryRpm; cCmpS.data.datasets[1].data = liveHistorySp; cCmpS.update('none'); }
+    if (cMPage) { cMPage.options.scales.y.min = yMin; cMPage.options.scales.y.max = yMax; cMPage.data.labels = liveHistoryLbl; cMPage.data.datasets[0].data = liveHistoryRpm; cMPage.data.datasets[1].data = liveHistorySp; cMPage.update('none'); }
+    if (cSPage) { cSPage.options.scales.y.min = yMin; cSPage.options.scales.y.max = yMax; cSPage.data.labels = liveHistoryLbl; cSPage.data.datasets[0].data = liveHistoryRpm; cSPage.data.datasets[1].data = liveHistorySp; cSPage.update('none'); }
+    if (cCmpM)  { cCmpM.options.scales.y.min = yMin; cCmpM.options.scales.y.max = yMax; cCmpM.data.labels = liveHistoryLbl; cCmpM.data.datasets[0].data = liveHistoryRpm; cCmpM.data.datasets[1].data = liveHistorySp; cCmpM.update('none'); }
+    if (cCmpS)  { cCmpS.options.scales.y.min = yMin; cCmpS.options.scales.y.max = yMax; cCmpS.data.labels = liveHistoryLbl; cCmpS.data.datasets[0].data = liveHistoryRpm; cCmpS.data.datasets[1].data = liveHistorySp; cCmpS.update('none'); }
   }
 
   logTelemetry(rpm, pwm, steadyStateError, overshoot, activeFuzzyVal, level);
@@ -452,6 +501,23 @@ function exportCSV() {
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([headers + rows], { type: 'text/csv' })); a.download = 'bldc_telemetry.csv'; a.click();
 }
 
+// ==========================================
+// BUKA PORTAL OTA
+// ==========================================
+function openOTAPortal() {
+  const ipInput = document.getElementById('otaIpAddress').value.trim();
+  
+  if (!ipInput) {
+    return alert('Harap masukkan IP Address ESP32 terlebih dahulu!\n(Contoh: 192.168.1.15)');
+  }
+  
+  // Membersihkan input jika user tidak sengaja memasukkan http:// atau /update
+  let cleanIp = ipInput.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+  
+  // Membuka tab baru yang langsung mengarah ke halaman OTA ESP32
+  window.open(`http://${cleanIp}/update`, '_blank');
+}
+
 window.onload = () => { 
   initDashboardCharts(); 
   selectFuzzyType('sugeno'); 
@@ -485,3 +551,4 @@ window.resetTelemetry = resetTelemetry;
 window.connectMQTT = connectMQTT; 
 window.disconnectMQTT = disconnectMQTT; 
 window.exportCSV = exportCSV;
+window.openOTAPortal = openOTAPortal;
