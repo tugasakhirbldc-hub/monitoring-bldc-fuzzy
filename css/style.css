@@ -5,43 +5,42 @@
 
 /* ── Variabel warna & ukuran yang dipakai di seluruh halaman ── */
 :root {
+  /* Warna background utama (lebih gelap & misterius) */
+  --bg-deep: rgba(5, 10, 25, 0.85);
+  --bg-mid:  rgba(15, 20, 45, 0.75);
 
-  /* warna background utama (biru gelap) */
-  --bg-deep: #08142f;
-  --bg-mid:  #112250;
+  /* Warna kaca (efek glassmorphism) */
+  --glass: rgba(255, 255, 255, 0.05);
+  --glass-light: rgba(255, 255, 255, 0.08);
 
-  /* warna kaca (efek glassmorphism) */
-  --glass: rgba(17,34,80,0.55);
-  --glass-light: rgba(60,80,125,0.25);
+  /* WARNA EMAS (Aksen utama, menggantikan cyan) */
+  --accent:  #D4AF37;  /* Warna emas metalik */
+  --accent2: #F5D48A;  /* Warna emas muda/cream */
 
-  /* warna aksen biru */
-  --accent:  #4ea8ff;
-  --accent2: #7dd3fc;
+  /* Warna emas brand */
+  --gold: #FFD700;
 
-  /* warna emas (aksen utama brand) */
-  --gold: #E0C58F;
+  /* Warna status (dibuat sedikit lebih redup agar tidak tabrakan dengan emas) */
+  --green: #2ecc71; 
+  --red:   #e74c3c;
+  --amber: #f1c40f;
 
-  /* warna status: hijau = aman, merah = bahaya, kuning = peringatan */
-  --green: #10b981;
-  --red:   #ef4444;
-  --amber: #f59e0b;
+  /* Warna teks (putih bersih & abu-abu elegan) */
+  --text-hi:  #ffffff;
+  --text-mid: #c0c0c0;
+  --text-lo:  #808080;
 
-  /* warna teks: hi = paling terang, mid = sedang, lo = paling redup */
-  --text-hi:  #f5f0e9;
-  --text-mid: #d9cbc2;
-  --text-lo:  #94a3c8;
+  /* Warna border kaca (lebih halus) */
+  --border: rgba(255, 255, 255, 0.1);
+  --border-hi: rgba(255, 255, 255, 0.2);
 
-  /* warna border */
-  --border: rgba(224,197,143,0.15);
-  --border-hi: rgba(224,197,143,0.35);
+  /* Efek cahaya emas (glow) */
+  --glow-blue: 0 0 15px rgba(212, 175, 55, 0.4); /* Glow jadi emas */
+  --glow-gold: 0 0 20px rgba(255, 215, 0, 0.3);
 
-  /* efek glow/cahaya */
-  --glow-blue: 0 0 16px rgba(78,168,255,0.18);
-  --glow-gold: 0 0 18px rgba(224,197,143,0.18);
-
-  /* radius border (sudut melengkung) */
-  --radius: 14px;
-  --radius-sm: 9px;
+  /* Radius border */
+  --radius: 16px;
+  --radius-sm: 8px;
 }
 
 /* ── Reset dasar agar tampilan konsisten di semua browser ── */
@@ -58,13 +57,12 @@ html, body { min-height: 100%; overflow-x: hidden; }
 body {
   font-family: 'Inter', sans-serif;
 
-  /* gambar background + overlay gelap supaya teks tetap terbaca */
-  background:
+  background: 
     linear-gradient(
-      rgba(5, 15, 35, 0.62),
-      rgba(5, 15, 35, 0.70)
+      rgba(2, 6, 20, 0.75), 
+      rgba(2, 6, 20, 0.85)
     ),
-    url('../assets/bg.jpg');
+    url('../assets/bg.png'); /* Pastikan file bg-baru.jpg ada di folder assets */
 
   background-size: cover;
   background-position: center;
@@ -75,28 +73,6 @@ body {
   min-height: 100vh;
 }
 
-/* Efek glow emas di pojok kiri atas */
-body::before {
-  content: '';
-  position: fixed;
-  top: -150px;
-  left: -100px;
-
-  width: 600px;
-  height: 600px;
-  border-radius: 50%;
-
-  background:
-    radial-gradient(
-      circle,
-      rgba(224,197,143,0.18) 0%,
-      transparent 70%
-    );
-
-  filter: blur(40px);
-  pointer-events: none;
-  z-index: -1;
-}
 
 /* Efek glow biru di pojok kanan bawah */
 body::after {
@@ -123,9 +99,9 @@ body::after {
 
 /* ── Tipografi untuk nama brand & judul halaman ── */
 .brand-name, .page-title {
-  font-family: 'Cormorant Garamond', serif;
-  font-weight: 600;
-  letter-spacing: 0.5px;
+  font-family: 'Inter', sans-serif; 
+  font-weight: 700;
+  letter-spacing: -0.5px; 
 }
 
 body::selection {
@@ -248,14 +224,29 @@ body::selection {
   letter-spacing: 0.04em;
 }
 
+/* ══════════════════════════════════
+   TOPBAR (Header Kaca)
+══════════════════════════════════ */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 9999;
+  background: rgba(2, 6, 20, 0.6);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  padding: 16px 24px;
+}
+
 /* ── Menu navigasi ── */
 .topbar-nav {
   display: flex;
   justify-content: center;
   align-items: center;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 14px;
+  gap: 12px;
+  margin-top: 16px;
   width: 100%;
 }
 
@@ -263,23 +254,35 @@ body::selection {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 7px 18px;
-  border-radius: 8px;
-  font-size: clamp(12px, 1vw, 14px);
-  font-weight: 500;
+  gap: 8px;
+  padding: 8px 20px;
+  border-radius: 30px; /* Bentuk kapsul ala modern UI */
+  font-size: clamp(12px, 1vw, 13px);
+  font-weight: 600;
   color: var(--text-mid);
   border: 1px solid transparent;
   cursor: pointer;
   user-select: none;
-  transition: all 0.2s;
+  transition: all 0.3s ease;
+  background: rgba(255,255,255,0.03);
 }
-.nav-item:hover { color: var(--text-hi); background: var(--glass); }
+
+.nav-item:hover { 
+  color: var(--text-hi); 
+  background: rgba(255,255,255,0.08); 
+  border-color: rgba(255,255,255,0.15);
+}
+
 .nav-item.active {
-  color: #E0C58F;
-  border-color: rgba(224,197,143,0.25);
-  background: rgba(224,197,143,0.08);
+  color: #050c1e; 
+  background: linear-gradient(135deg, #F5D48A, #D4AF37);
+  border-color: #D4AF37;
+  box-shadow: 0 0 18px rgba(212, 175, 55, 0.35);
 }
+
+/* Matikan garis bawah menu lama */
+.nav-item.active::after { display: none; }
+
 /* garis kecil di bawah menu yang sedang aktif */
 .nav-item.active::after {
   content: '';
@@ -359,60 +362,27 @@ body::selection {
 .page.active { display: block; animation: fadeUp 0.28s ease; }
 @keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
 
-/* ══════════════════════════════════
-   KARTU (GLASS CARD)
-   Kotak dengan efek kaca yang dipakai di hampir semua bagian
-══════════════════════════════════ */
-.card {
-  background: linear-gradient(
-    135deg,
-    rgba(12,28,68,0.92),
-    rgba(35,58,110,0.84)
-  );
-
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-
-  border: 1px solid rgba(224,197,143,0.18);
-
-  box-shadow:
-    0 12px 40px rgba(0,0,0,0.35),
-    inset 0 1px 0 rgba(255,255,255,0.04);
-
-  border-radius: var(--radius);
-  padding: clamp(14px,1.4vw,20px);
-
-  position: relative;
-  overflow: hidden;
-  width: 100%;
-
-  transition:
-    transform 0.25s ease,
-    border-color 0.25s ease,
-    box-shadow 0.25s ease;
-}
-/* garis tipis berkilau di bagian atas kartu */
-.card::before {
+/* Efek glow emas di pojok kiri atas */
+body::before {
   content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(224,197,143,0.4), transparent);
+  position: fixed;
+  top: -150px;
+  left: -100px;
+
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(224,197,143,0.18) 0%,
+      transparent 70%
+    );
+
+  filter: blur(40px);
   pointer-events: none;
-}
-.card:hover {
-  border-color: rgba(224,197,143,0.35);
-  box-shadow: 0 10px 36px rgba(0,0,0,0.30), 0 0 18px rgba(224,197,143,0.15);
-  transform: translateY(-2px);
-}
-.card-title {
-  font-family: 'Cormorant Garamond', serif;
-  color: #E0C58F;
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  margin-bottom: 10px;
+  z-index: -1;
 }
 
 /* ══════════════════════════════════
@@ -433,52 +403,144 @@ body::selection {
 @media (max-width: 900px) { .kontrol-grid { grid-template-columns: 1fr; } }
 
 /* ══════════════════════════════════
-   KARTU METRIK (RPM, PWM, Error, dll)
+   KARTU (PURE GLASS CARD) - DIPERJELAS KOTAKNYA
 ══════════════════════════════════ */
-.metric-card {
-  background: rgba(8,20,47,0.82);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  border: 1px solid rgba(255,255,255,0.07);
-  box-shadow: 0 4px 18px rgba(0,0,0,0.18);
-  border-radius: var(--radius);
-  padding: 16px 18px;
+.card {
+  /* Warna background dibuat sedikit lebih pekat agar bentuk kotak jelas */
+  background: rgba(12, 22, 55, 0.55); 
+  
+  /* Efek kaca buram (blur) yang menyamarkan background di belakangnya */
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+
+  /* Garis batas (line) putih tipis memutar agar batas kotak terlihat */
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-top: 1px solid rgba(255, 255, 255, 0.25); /* Garis atas sedikit lebih terang ala pantulan cahaya */
+  border-left: 1px solid rgba(255, 255, 255, 0.15);
+
+  /* Kombinasi bayangan luar (gelap) dan bayangan dalam (putih tipis) */
+  box-shadow: 
+    0 10px 30px rgba(0, 0, 0, 0.5), 
+    inset 0 1px 1px rgba(255, 255, 255, 0.15);
+
+  /* Sudut yang membulat (radius) */
+  border-radius: var(--radius); /* menggunakan variabel 16px */
+  padding: clamp(16px, 1.8vw, 24px);
+
   position: relative;
   overflow: hidden;
+  width: 100%;
+  transition: all 0.3s ease;
 }
-.metric-card::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(100,160,255,0.35), transparent);
+
+/* Sedikit efek terang saat kotak disorot mouse */
+.card:hover {
+  background: rgba(15, 28, 70, 0.65);
+  border-color: rgba(212, 175, 55, 0.3); /* Garis berubah sedikit keemasan saat di-hover */
+  box-shadow: 
+    0 15px 40px rgba(0, 0, 0, 0.6), 
+    inset 0 1px 1px rgba(255, 255, 255, 0.2);
 }
-.mc-glow { position: absolute; top: -20px; right: -20px; width: 80px; height: 80px; border-radius: 50%; opacity: 0.15; }
-.mc-label { font-size: 11px; color: var(--text-lo); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px; font-weight: 600; }
+
+/* ══════════════════════════════════
+   KARTU METRIK (RPM, PWM, Error, dll) - PURE GLASS
+══════════════════════════════════ */
+.metric-card {
+  /* Latar belakang sangat transparan untuk efek kaca */
+  background: rgba(10, 18, 45, 0.35); 
+  
+  /* Efek blur (buram) yang kuat pada background di belakangnya */
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  
+  /* Garis luar (Outer Border) transparan */
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 2px solid transparent; /* Slot untuk garis warna status di bawah */
+  
+  /* Kombinasi Bayangan Luar (Drop Shadow) & Bayangan Dalam (Inner Shadow) 
+     Inner shadow putih tipis ini yang memberi kesan "line membungkus dari dalam" ala UI Sci-Fi */
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.4), 
+    inset 0 1px 1px rgba(255, 255, 255, 0.15),
+    inset 0 0 10px rgba(255, 255, 255, 0.02);
+
+  border-radius: var(--radius-sm);
+  padding: 18px 20px;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+/* Hapus elemen dekorasi usang (garis atas dan glow bulat) yang membuat tampilan kotor */
+.metric-card::before, .mc-glow { 
+  display: none; 
+}
+
+.metric-card:hover {
+  transform: translateY(-3px) scale(1.02);
+  /* Saat di-hover, kaca sedikit lebih terang */
+  background: rgba(15, 25, 60, 0.45);
+  box-shadow: 
+    0 12px 40px rgba(0, 0, 0, 0.5), 
+    inset 0 1px 1px rgba(255, 255, 255, 0.25);
+}
+
+/* Garis warna menyala di bagian bawah (Border Bottom) sesuai status indikator */
+.metric-card { border-bottom-color: var(--accent); }
+.metric-card.green { border-bottom-color: var(--green); }
+.metric-card.amber { border-bottom-color: var(--amber); }
+.metric-card.blue { border-bottom-color: var(--accent2); }
+
+/* Teks Label (misal: "RPM AKTUAL") */
+.mc-label { 
+  font-size: 11px; 
+  color: var(--text-mid); 
+  letter-spacing: 0.1em; 
+  text-transform: uppercase; 
+  margin-bottom: 8px; 
+  font-weight: 600; 
+}
+
+/* Angka Besar (misal: "103") */
 .mc-value {
   font-family: 'Rajdhani', sans-serif;
-  font-size: clamp(24px,4vw,40px);
+  font-size: clamp(28px, 4vw, 44px);
   font-weight: 700;
   line-height: 1;
-  /* angka besar dengan gradasi warna */
-  background: linear-gradient(135deg, #F5F0E9, #E0C58F);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
+  /* Warna teks utama putih/silver dengan efek bercahaya */
+  color: #f8fafc;
+  text-shadow: 0 0 15px rgba(255, 255, 255, 0.4);
+  /* Menghapus background-clip gradasi lama yang membuat kusam */
+  background: none;
+  -webkit-text-fill-color: initial;
 }
-.mc-unit { font-size: 12px; color: var(--text-mid); margin-top: 4px; font-weight: 500; }
 
-/* Bar kecil di bawah tiap kartu metrik, untuk visual persentase */
-.mc-bar { height: 3px; border-radius: 2px; background: rgba(255,255,255,0.07); margin-top: 10px; }
-.mc-bar-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg,#3b82f6,#06b6d4); transition: width 0.8s ease; }
+/* Angka Besar dengan Varian Warna */
+.metric-card.green .mc-value { 
+  color: var(--green); 
+  text-shadow: 0 0 15px rgba(0, 255, 136, 0.4); 
+}
+.metric-card.amber .mc-value { 
+  color: var(--amber); 
+  text-shadow: 0 0 15px rgba(255, 187, 0, 0.4); 
+}
+.metric-card.blue .mc-value { 
+  color: var(--accent2); 
+  text-shadow: 0 0 15px rgba(78, 168, 255, 0.4); 
+}
 
-/* Varian warna kartu metrik: hijau dan kuning/amber */
-.metric-card.green .mc-value { background: linear-gradient(135deg,#6ee7b7,#34d399); -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent; }
-.metric-card.amber .mc-value { background: linear-gradient(135deg,#fcd34d,#f59e0b); -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent; }
-.mc-bar-fill.green { background: linear-gradient(90deg,#10b981,#34d399); }
-.mc-bar-fill.amber { background: linear-gradient(90deg,#f59e0b,#fcd34d); }
+/* Teks Satuan (misal: "rpm") */
+.mc-unit { 
+  font-size: 12px; 
+  color: var(--text-lo); 
+  margin-top: 6px; 
+  font-weight: 500; 
+}
 
+/* Sembunyikan bar progress lama yang tidak cocok dengan desain modern */
+.mc-bar, .mc-bar-fill { 
+  display: none; 
+}
 /* ══════════════════════════════════
    HEADER SECTION (judul tiap halaman)
 ══════════════════════════════════ */
@@ -496,12 +558,11 @@ body::selection {
   margin-bottom: 14px;
 }
 .section-title {
-  font-family: 'Rajdhani', sans-serif;
-  font-size: clamp(20px,2.2vw,30px);
+  font-family: 'Inter', sans-serif; 
+  font-size: clamp(20px,2.2vw,26px);
   font-weight: 700;
-  color: #F5D48A;
-  text-shadow: 0 2 10px rgba(0,0,0,0.6);
-  letter-spacing: 0.03em;
+  color: #f8fafc; 
+  letter-spacing: -0.5px;
 }
 .section-sub { font-size: 12px; color: var(--text-lo); margin-top: 2px; }
 
@@ -596,24 +657,50 @@ body::selection {
 .btn-ghost:hover { background: var(--glass); color: var(--text-hi); border-color: var(--border-hi); }
 
 /* ══════════════════════════════════
-   INPUT FORM
+   INPUT FORM (Glassmorphism Effect)
 ══════════════════════════════════ */
 .glass-input, .glass-select {
-  background: rgba(14,30,90,0.5);
-  border: 1px solid var(--border);
+  background: rgba(10, 18, 45, 0.35); /* Disamakan dengan transparansi kartu utama */
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  
+  /* Garis luar (Border) yang tegas */
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  
+  /* Bayangan dalam (Inset Shadow) agar terlihat seperti cekungan */
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5);
+  
   border-radius: 8px;
   color: var(--text-hi);
-  padding: 8px 12px;
+  padding: 10px 14px;
   font-size: 13px;
   font-family: 'Inter', sans-serif;
   outline: none;
-  transition: border-color 0.2s;
+  transition: all 0.3s ease;
   width: 100%;
 }
-.glass-input:focus, .glass-select:focus { border-color: var(--accent); }
-.glass-select option { background: #050c2e; color: #e8eeff; }
-.input-label { font-size: 11px; color: var(--text-lo); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 5px; font-weight: 600; }
 
+.glass-input:focus, .glass-select:focus { 
+  border-color: rgba(0, 240, 255, 0.5); /* Garis biru neon saat sedang diketik */
+  box-shadow: 
+    inset 0 2px 6px rgba(0, 0, 0, 0.5),
+    0 0 10px rgba(0, 240, 255, 0.2);
+  background: rgba(10, 18, 45, 0.5);
+}
+
+.glass-select option { 
+  background: #050c2e; 
+  color: #e8eeff; 
+}
+
+.input-label { 
+  font-size: 11px; 
+  color: var(--text-mid); 
+  letter-spacing: 0.05em; 
+  text-transform: uppercase; 
+  margin-bottom: 6px; 
+  font-weight: 600; 
+}
 /* ══════════════════════════════════
    AREA CHART (canvas Chart.js)
 ══════════════════════════════════ */

@@ -7,6 +7,7 @@
 const TOPICS = {
   DATA_ALL:        'bldc/data/#',
   DATA_RPM:        'bldc/data/rpm',
+  STATUS_IP:       'bldc/status/ip',
   CTRL_START:      'bldc/control/start',
   CTRL_STOP:       'bldc/control/stop',
   CTRL_SETPOINT:   'bldc/control/setpoint',
@@ -109,17 +110,16 @@ function toggleSubMenu(menuId, event) {
 }
 
 // Pindah ke sub-halaman Tipe Fuzzy: Mamdani / Sugeno / Perbandingan
-function showFuzzyMode(mode, event) {
+function showFuzzyMode(mode, navEl, event) {
   if (event) event.stopPropagation();
 
   // sembunyikan semua halaman, tampilkan halaman fuzzy
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-fuzzy').classList.add('active');
 
-  // tandai menu "Tipe Fuzzy" sebagai aktif di navbar
+  // hapus status aktif dari semua menu di topbar, lalu aktifkan menu yang baru saja diklik
   document.querySelectorAll('.topbar-nav .nav-item').forEach(n => n.classList.remove('active', 'sub-open'));
-  document.getElementById('nav-fuzzy').classList.add('active');
-  document.getElementById('fuzzy-sub').classList.remove('open');
+  if (navEl) navEl.classList.add('active');
 
   // sembunyikan semua sub-halaman fuzzy dulu sebelum menampilkan salah satunya
   document.querySelectorAll('.fuzzy-sub-page').forEach(p => p.style.display = 'none');
@@ -139,8 +139,10 @@ function showFuzzyMode(mode, event) {
 
 // ==========================================
 // FUNGSI MEMBERSHIP FUNCTION (FUZZY)
-// trimf = triangular membership function (fungsi keanggotaan segitiga)
+// Sesuai dengan program ESP32 (Domain Error: -200 s.d 200)
 // ==========================================
+
+// Fungsi Keanggotaan Segitiga
 function trimf(x, a, b, c) {
   if (x <= a || x >= c) return 0;
   if (x === b) return 1;
@@ -148,41 +150,49 @@ function trimf(x, a, b, c) {
   return (c - x) / (c - b);
 }
 
-// Membuat grafik membership function (NB, NS, Z, PS, PB) untuk input Error
+// Fungsi Keanggotaan Trapesium
+function trapmf(x, a, b, c, d) {
+  if (x <= a || x >= d) return 0;
+  if (x >= b && x <= c) return 1;
+  if (x > a && x < b) return (x - a) / (b - a);
+  return (d - x) / (d - c);
+}
+
+// Membuat grafik membership function (NB, NS, ZE, PS, PB) untuk input Error
 function makeMFChart(canvasId) {
   const ctx = document.getElementById(canvasId);
   if (!ctx) return null;
 
-  // sumbu X dari -100 sampai 100, step 5
+  // Sumbu X dari -200 sampai 200 (sesuai domain input error ESP32), loncat tiap 10 angka
   const labels = [];
-  for (let i = -100; i <= 100; i += 5) labels.push(i);
+  for (let i = -200; i <= 200; i += 10) labels.push(i);
 
-  // hitung nilai derajat keanggotaan untuk setiap label di tiap kategori
-  const dNB = labels.map(x => (x <= -50) ? 1 : trimf(x, -100, -50, -20));
-  const dNS = labels.map(x => trimf(x, -30, -10, 0));
-  const dZE = labels.map(x => trimf(x, -5, 0, 5));
-  const dPS = labels.map(x => trimf(x, 0, 10, 30));
-  const dPB = labels.map(x => (x >= 50) ? 1 : trimf(x, 20, 50, 100));
+  // Menghitung derajat keanggotaan persis seperti di .ino
+  const dNB = labels.map(x => trapmf(x, -200, -200, -150, -75));
+  const dNS = labels.map(x => trimf(x, -150, -75, 0));
+  const dZE = labels.map(x => trimf(x, -50, 0, 50));
+  const dPS = labels.map(x => trimf(x, 0, 75, 150));
+  const dPB = labels.map(x => trapmf(x, 75, 150, 200, 200));
 
   return new Chart(ctx, {
     type: 'line',
     data: {
       labels: labels,
       datasets: [
-        { label: 'NB', data: dNB, borderColor: '#ef4444', backgroundColor: '#ef444422', fill: true, tension: 0.1, pointRadius: 0, borderWidth: 2 },
-        { label: 'NS', data: dNS, borderColor: '#f97316', backgroundColor: '#f9731622', fill: true, tension: 0.1, pointRadius: 0, borderWidth: 2 },
-        { label: 'ZE', data: dZE, borderColor: '#10b981', backgroundColor: '#10b98122', fill: true, tension: 0.1, pointRadius: 0, borderWidth: 2 },
-        { label: 'PS', data: dPS, borderColor: '#3b82f6', backgroundColor: '#3b82f622', fill: true, tension: 0.1, pointRadius: 0, borderWidth: 2 },
-        { label: 'PB', data: dPB, borderColor: '#8b5cf6', backgroundColor: '#8b5cf622', fill: true, tension: 0.1, pointRadius: 0, borderWidth: 2 }
+        { label: 'NB', data: dNB, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.15)', fill: true, tension: 0, pointRadius: 0, borderWidth: 2 },
+        { label: 'NS', data: dNS, borderColor: '#f97316', backgroundColor: 'rgba(249,115,22,0.15)', fill: true, tension: 0, pointRadius: 0, borderWidth: 2 },
+        { label: 'ZE', data: dZE, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.15)', fill: true, tension: 0, pointRadius: 0, borderWidth: 2 },
+        { label: 'PS', data: dPS, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.15)', fill: true, tension: 0, pointRadius: 0, borderWidth: 2 },
+        { label: 'PB', data: dPB, borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.15)', fill: true, tension: 0, pointRadius: 0, borderWidth: 2 }
       ]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
+      plugins: { legend: { display: false }, tooltip: { enabled: true } },
       scales: {
-        x: { ticks: { color: '#4a5888', font: { size: 10 } }, grid: { color: 'rgba(80,140,255,0.07)' } },
-        y: { min: 0, max: 1.05, ticks: { color: '#4a5888', font: { size: 10 } }, grid: { color: 'rgba(80,140,255,0.07)' } }
+        x: { ticks: { color: 'rgba(255,255,255,0.6)', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+        y: { min: 0, max: 1.05, ticks: { color: 'rgba(255,255,255,0.6)', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } }
       }
     }
   });
@@ -420,21 +430,26 @@ function selectFuzzyType(type) {
   const chkS = document.getElementById('checkS');
 
   if (type === 'mamdani') {
-    // tandai opsi Mamdani sebagai terpilih, Sugeno jadi non-aktif
+    optS.classList.remove('selected-green');
+    optM.classList.add('selected-blue');
     optM.style.borderColor = 'rgba(59,130,246,0.45)';
     optM.style.background  = 'rgba(59,130,246,0.15)';
     optS.style.borderColor  = 'transparent';
     optS.style.background  = 'transparent';
+    
     chkM.style.opacity = '1';
     chkS.style.opacity = '0';
     document.getElementById('foNameM').style.color = '#7dd3fc';
     document.getElementById('foNameS').style.color = 'var(--text-hi)';
+    
   } else {
-    // tandai opsi Sugeno sebagai terpilih, Mamdani jadi non-aktif
+    optM.classList.remove('selected-blue');
+    optS.classList.add('selected-green');
     optS.style.borderColor = 'rgba(16,185,129,0.45)';
     optS.style.background  = 'rgba(16,185,129,0.15)';
     optM.style.borderColor  = 'transparent';
     optM.style.background  = 'transparent';
+    
     chkS.style.opacity = '1';
     chkM.style.opacity = '0';
     document.getElementById('foNameS').style.color = '#6ee7b7';
@@ -608,7 +623,18 @@ function connectMQTT() {
     safeSet('mqttMsgCount', msgCount);
     safeSet('lastMsg', new Date().toLocaleTimeString('id-ID'));
 
-    // format data: "rpm,pwm,error,level" dipisah koma
+    // ==========================================
+    // TANGKAP IP ADDRESS
+    // ==========================================
+    if (topic === TOPICS.STATUS_IP) {
+      safeSet('espIpAddress', raw); // Tampilkan di kotak status
+
+      const otaInput = document.getElementById('otaIpAddress');
+      if (otaInput) otaInput.value = raw;
+      return; // Selesai proses pesan ini
+    }
+    // ==========================================
+    // TANGKAP DATA TELEMETRY (RPM, PWM, ERROR, LEVEL)
     if (raw.includes(',')) {
       const parts = raw.split(',');
       if (parts.length >= 4) {
@@ -644,8 +670,8 @@ function processIncomingData(rpm, pwm, error, level) {
   }
 
   // update tampilan RPM aktual + bar progress-nya
-  safeSet('mRPM', rpm.toFixed(1));
-  safeSet('miniRpmVal', rpm.toFixed(1));
+  safeSet('mPWM', pwm.toFixed(2)); 
+  safeSet('miniPwmVal', pwm.toFixed(2));
   safeStyle('barRPM', 'width', Math.min((rpm / 450 * 100), 100) + '%');
 
   // catat RPM minimum & maksimum selama motor berjalan
@@ -816,7 +842,7 @@ function logTelemetry(rpm, pwm, err, os, fuzzy, level) {
     time: timeStr,
     rpm: rpm.toFixed(1),
     sp: currentSetpointVal,
-    pwm: pwm.toFixed(0),
+    pwm: pwm.toFixed(2),
     err: err.toFixed(1),
     os: os.toFixed(1),
     type: fuzzy === 'mamdani' ? 'Mamdani' : 'Sugeno',
@@ -940,11 +966,60 @@ function openOTAPortal() {
 }
 
 // ==========================================
+// RENDER MATRIKS RULE BASE (MAMDANI & SUGENO)
+// Sesuai dengan 25 Aturan di ESP32 (Dalam bentuk angka PWM)
+// ==========================================
+function renderRuleBase() {
+  // Matriks 5x5 berisi nilai numerik sesuai rule C++ (-800 s.d 800)
+  const rules = [
+    [-800, -800, -400, -400,    0], // Error NB
+    [-800, -400, -400,    0,  400], // Error NS
+    [-400, -400,    0,  400,  400], // Error ZE
+    [-400,    0,  400,  400,  800], // Error PS
+    [   0,  400,  400,  800,  800]  // Error PB
+  ];
+  
+  const headers = ['NB', 'NS', 'ZE', 'PS', 'PB'];
+  
+  // Fungsi penentu class warna badge berdasarkan besaran angka
+  const getBadgeClass = (val) => {
+    if (val === -800) return 'rp-vr'; // Ungu/Merah Gelap (NB)
+    if (val === -400) return 'rp-r';  // Biru (NS)
+    if (val === 0)    return 'rp-s';  // Hijau (ZE)
+    if (val === 400)  return 'rp-t';  // Kuning (PS)
+    if (val === 800)  return 'rp-vt'; // Merah Terang (PB)
+    return '';
+  };
+
+  // Susun HTML untuk tabel
+  let html = `<thead><tr><th>E \\ dE</th>`;
+  headers.forEach(de => html += `<th>${de}</th>`);
+  html += `</tr></thead><tbody>`;
+
+  headers.forEach((e, i) => {
+    html += `<tr><td>${e}</td>`;
+    rules[i].forEach(outVal => {
+      // Masukkan angka ke dalam badge dengan warna yang sesuai
+      html += `<td><span class="${getBadgeClass(outVal)}">${outVal}</span></td>`;
+    });
+    html += `</tr>`;
+  });
+  html += `</tbody>`;
+
+  // Terapkan ke tabel Mamdani dan Sugeno
+  safeHTML('ruleMamdani', html);
+  safeHTML('ruleSugeno', html);
+}
+
+// ==========================================
 // SAAT HALAMAN PERTAMA KALI DIBUKA
 // ==========================================
 window.onload = () => {
   initDashboardCharts();
   selectFuzzyType('sugeno'); // default tipe fuzzy aktif: Sugeno
+
+  // Tambahkan baris ini untuk merender matriks rule base!
+  renderRuleBase();
 
   // paksa slider, input teks, dan indikator metrik langsung ke nilai default 100
   if (document.getElementById('spRPMInput')) document.getElementById('spRPMInput').value = 100;

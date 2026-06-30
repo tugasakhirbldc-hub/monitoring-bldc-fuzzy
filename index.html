@@ -7,8 +7,7 @@
   <title>Monitoring dan Kontrol Motor BLDC</title>
 
   <!-- Font dari Google Fonts -->
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
-
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
   <!-- File CSS utama -->
   <link rel="stylesheet" href="css/style.css">
 </head>
@@ -65,13 +64,14 @@
       </div>
 
       <!-- Menu dengan sub-menu: Tipe Fuzzy -->
-      <div class="nav-item has-sub" id="nav-fuzzy" onclick="toggleSubMenu('fuzzy-sub', event)">
-        <span class="nav-icon">📊</span> Tipe Fuzzy <span class="sub-arrow">▾</span>
-        <div class="sub-menu" id="fuzzy-sub">
-          <div class="sub-item" onclick="showFuzzyMode('mamdani', event)"><span class="sub-dot blue"></span> Fuzzy Mamdani</div>
-          <div class="sub-item" onclick="showFuzzyMode('sugeno', event)"><span class="sub-dot green"></span> Fuzzy Sugeno</div>
-          <div class="sub-item" onclick="showFuzzyMode('compare', event)"><span class="sub-dot cyan"></span> Perbandingan</div>
-        </div>
+      <div class="nav-item" onclick="showFuzzyMode('mamdani', this, event)">
+        <span class="nav-icon">🔵</span> Fuzzy Mamdani
+      </div>
+      <div class="nav-item" onclick="showFuzzyMode('sugeno', this, event)">
+        <span class="nav-icon">🟢</span> Fuzzy Sugeno
+      </div>
+      <div class="nav-item" onclick="showFuzzyMode('compare', this, event)">
+        <span class="nav-icon">📊</span> Perbandingan
       </div>
 
       <div class="nav-item" onclick="showPage('telemetry', this)">
@@ -115,11 +115,11 @@
             <div class="mc-bar"><div class="mc-bar-fill" id="barRPM" style="width:0%"></div></div>
           </div>
 
-          <div class="metric-card green">
-            <div class="mc-label">PWM Output</div>
-            <div class="mc-value" id="mPWM">103</div>
-            <div class="mc-unit">duty cycle (103–255)</div>
-            <div class="mc-bar"><div class="mc-bar-fill green" id="barPWM" style="width:0%"></div></div>
+          <div class="metric-card">
+            <div class="mc-label">Setpoint RPM</div>
+            <div class="mc-value" id="mSetpoint">0</div>
+            <div class="mc-unit">target rpm</div>
+            <div class="mc-bar"><div class="mc-bar-fill" id="barSetpoint" style="width:0%"></div></div>
           </div>
 
           <div class="metric-card amber">
@@ -136,11 +136,11 @@
             <div class="mc-bar"><div class="mc-bar-fill blue" id="barErrorInstan" style="width:0%"></div></div>
           </div>
 
-          <div class="metric-card">
-            <div class="mc-label">Setpoint RPM</div>
-            <div class="mc-value" id="mSetpoint">0</div>
-            <div class="mc-unit">target rpm</div>
-            <div class="mc-bar"><div class="mc-bar-fill" id="barSetpoint" style="width:0%"></div></div>
+          <div class="metric-card green">
+            <div class="mc-label">PWM Output</div>
+            <div class="mc-value" id="mPWM">103</div>
+            <div class="mc-unit">duty cycle (103–255)</div>
+            <div class="mc-bar"><div class="mc-bar-fill green" id="barPWM" style="width:0%"></div></div>
           </div>
 
           <div class="metric-card amber">
@@ -288,7 +288,7 @@
                 <span class="mf-chip" style="border-color:#8b5cf6;color:#8b5cf6">PB</span>
               </div>
               <div class="chart-wrap"><canvas id="mfMamdani"></canvas></div>
-              <div class="chart-meta">Domain: -100 s.d 100 (Trapezoidal Shoulder)</div>
+              <div class="chart-meta">Domain: -200 s.d 200 (Trapezoidal Shoulder)</div>
             </div>
           </div>
 
@@ -341,7 +341,7 @@
                 <span class="mf-chip" style="border-color:#8b5cf6;color:#8b5cf6">PB</span>
               </div>
               <div class="chart-wrap"><canvas id="mfSugeno"></canvas></div>
-              <div class="chart-meta">Domain: -100 s.d 100 (Trapezoidal Shoulder)</div>
+              <div class="chart-meta">Domain: -200 s.d 200 (Trapezoidal Shoulder)</div>
             </div>
           </div>
 
@@ -555,6 +555,29 @@
           <!-- Kolom kanan: Status sistem, OTA update, preview MQTT publish -->
           <div class="flex flex-col gap-16">
 
+            <div class="info-grid mb-16" style="grid-template-columns:1fr 1fr">
+                <div class="info-cell">
+                  <div class="info-key">Motor</div>
+                  <div class="info-val" id="motorStatusText"><span class="dot red"></span>Stopped</div>
+                </div>
+                <div class="info-cell">
+                  <div class="info-key">Setpoint Aktif</div>
+                  <div class="info-val" id="activeSetpoint">0 RPM</div>
+                </div>
+                <div class="info-cell">
+                  <div class="info-key">Fuzzy Aktif</div>
+                  <div class="info-val" id="activeFuzzy">Sugeno</div>
+                </div>
+                <div class="info-cell">
+                  <div class="info-key">Level Beban</div>
+                  <div class="info-val" id="activeLevel">N</div>
+                </div>
+                <div class="info-cell" style="grid-column: span 2;">
+                  <div class="info-key">IP Address ESP32 (Auto)</div>
+                  <div class="info-val" id="espIpAddress" style="color: #6ee7b7;">Menunggu ESP32...</div>
+                </div>
+              </div>
+
             <!-- Status sistem dan tombol start/stop motor -->
             <div class="card">
               <div class="card-title mb-12">Status Sistem &amp; Aksi</div>
@@ -618,6 +641,7 @@
                 <div class="mp-line"><span class="mp-green" id="prevLevel">N</span></div>
               </div>
             </div>
+    
 
           </div>
 
