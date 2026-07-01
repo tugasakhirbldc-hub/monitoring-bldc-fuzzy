@@ -113,6 +113,8 @@ function toggleSubMenu(menuId, event) {
 function showFuzzyMode(mode, navEl, event) {
   if (event) event.stopPropagation();
 
+  startFuzzyCapture(); // Ini akan mengosongkan liveHistoryRpm dan reset counter
+
   // sembunyikan semua halaman, tampilkan halaman fuzzy
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-fuzzy').classList.add('active');
@@ -126,14 +128,12 @@ function showFuzzyMode(mode, navEl, event) {
 
   if (mode === 'mamdani') {
     document.getElementById('fuzzy-mamdani').style.display = 'block';
-    if (!cMPage) initFuzzyMamdani(); // chart hanya dibuat sekali (lazy init)
+    if (!cMPage) initFuzzyMamdani();
+    else cMPage.update(); // Update chart Mamdani
   } else if (mode === 'sugeno') {
     document.getElementById('fuzzy-sugeno').style.display = 'block';
     if (!cSPage) initFuzzySugeno();
-  } else {
-    document.getElementById('fuzzy-compare').style.display = 'block';
-    if (!cCmpM) initCompareCharts();
-    updateFuzzyMetricTables();
+    else cSPage.update(); // Update chart Sugeno
   }
 }
 
@@ -198,14 +198,18 @@ function makeMFChart(canvasId) {
   });
 }
 
-// Opsi default chart polos tanpa label waktu di sumbu X (dipakai mini chart & compare chart)
-const chartDefaults = {
+// Konfigurasi khusus untuk grafik yang perlu menampilkan waktu di sumbu X
+const fuzzyChartOptions = {
   responsive: true,
   maintainAspectRatio: false,
   animation: { duration: 0 },
   plugins: { legend: { display: false } },
   scales: {
-    x: { display: false },
+    x: { 
+      display: true, 
+      ticks: { color: '#94a3b8', font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 10 }, 
+      grid: { display: false } 
+    },
     y: { min: 0, ticks: { color: '#4a5888', font: { size: 10 } }, grid: { color: 'rgba(80,140,255,0.07)' } }
   }
 };
@@ -318,7 +322,7 @@ function initFuzzyMamdani() {
         { label: 'Setpoint', data: liveHistorySp, borderColor: '#ef4444', borderDash: [5, 5], pointRadius: 0, fill: false }
       ]
     },
-    options: chartDefaults
+    options: fuzzyChartOptions // Gunakan config baru
   });
   mfMChart = makeMFChart('mfMamdani');
 }
@@ -334,7 +338,7 @@ function initFuzzySugeno() {
         { label: 'Setpoint', data: liveHistorySp, borderColor: '#ef4444', borderDash: [5, 5], pointRadius: 0, fill: false }
       ]
     },
-    options: chartDefaults
+    options: fuzzyChartOptions // Gunakan config baru
   });
   mfSChart = makeMFChart('mfSugeno');
 }
@@ -352,7 +356,8 @@ function initCompareCharts() {
         { label: 'Setpoint', data: liveHistorySp, borderColor: '#ef4444', borderDash: [5, 5], pointRadius: 0, fill: false }
       ]
     },
-    options: chartDefaults
+    // Ganti chartDefaults menjadi fuzzyChartOptions agar label waktu muncul
+    options: fuzzyChartOptions 
   });
 
   cCmpS = new Chart(ctxS, {
@@ -364,7 +369,8 @@ function initCompareCharts() {
         { label: 'Setpoint', data: liveHistorySp, borderColor: '#ef4444', borderDash: [5, 5], pointRadius: 0, fill: false }
       ]
     },
-    options: chartDefaults
+    // Ganti chartDefaults menjadi fuzzyChartOptions agar label waktu muncul
+    options: fuzzyChartOptions
   });
 }
 
