@@ -614,6 +614,7 @@ function connectMQTT() {
 
     // subscribe ke semua topic data (bldc/data/#)
     mqttClient.subscribe(TOPICS.DATA_ALL);
+    mqttClient.subscribe(TOPICS.STATUS_IP);
   });
 
   // saat ada pesan data masuk dari ESP32
@@ -658,21 +659,24 @@ function disconnectMQTT() {
 }
 
 // ==========================================
-// PROSES DATA YANG MASUK DARI ESP32
-// Fungsi ini dipanggil setiap kali ada pesan data baru lewat MQTT
+// PERBAIKAN: update tampilan RPM aktual + bar progress-nya
 // ==========================================
-function processIncomingData(rpm, pwm, error, level) {
-  // simpan RPM tertinggi yang pernah dicapai, untuk hitung overshoot
-  if (rpm > peakRPM) peakRPM = rpm;
-  let overshoot = 0;
-  if (currentSetpointVal > 0 && peakRPM > currentSetpointVal) {
-    overshoot = ((peakRPM - currentSetpointVal) / currentSetpointVal) * 100;
+  safeSet('mRPM', rpm.toFixed(1)); // Baris ini yang sebelumnya hilang/tertimpa!
+  safeStyle('barRPM', 'width', Math.min((rpm / 450 * 100), 100) + '%');
+
+  // catat RPM minimum & maksimum selama motor berjalan
+  if (motorRunning) {
+    if (rpm < rpmMinVal) { rpmMinVal = rpm; safeSet('rpmMin', rpm.toFixed(1)); }
+    if (rpm > rpmMaxVal) { rpmMaxVal = rpm; safeSet('rpmMax', rpm.toFixed(1)); }
   }
 
-  // update tampilan RPM aktual + bar progress-nya
-  safeSet('mPWM', pwm.toFixed(2)); 
-  safeSet('miniPwmVal', pwm.toFixed(2));
-  safeStyle('barRPM', 'width', Math.min((rpm / 450 * 100), 100) + '%');
+  // ==========================================
+  // PERBAIKAN: update tampilan PWM + bar progress-nya (duty cycle 103-255)
+  // ==========================================
+  safeSet('mPWM', pwm.toFixed(2));       // Dibuat 2 desimal
+  safeSet('miniPwmVal', pwm.toFixed(2)); // Dibuat 2 desimal
+  let pwmPct = ((pwm - 103) / (255 - 103)) * 100;
+  safeStyle('barPWM', 'width', Math.max(0, Math.min(pwmPct, 100)) + '%');
 
   // catat RPM minimum & maksimum selama motor berjalan
   if (motorRunning) {
