@@ -158,6 +158,18 @@ function trapmf(x, a, b, c, d) {
   return (d - x) / (d - c);
 }
 
+// Warna sumbu chart yang menyesuaikan tema aktif (terang/gelap)
+function chartAxisColor() {
+  return document.documentElement.classList.contains('light-mode')
+    ? 'rgba(20,25,45,0.55)'
+    : 'rgba(255,255,255,0.6)';
+}
+function chartGridColorSubtle() {
+  return document.documentElement.classList.contains('light-mode')
+    ? 'rgba(20,25,45,0.08)'
+    : 'rgba(255,255,255,0.05)';
+}
+
 // Membuat grafik membership function (NB, NS, ZE, PS, PB) untuk input Error
 function makeMFChart(canvasId) {
   const ctx = document.getElementById(canvasId);
@@ -191,8 +203,8 @@ function makeMFChart(canvasId) {
       maintainAspectRatio: false,
       plugins: { legend: { display: false }, tooltip: { enabled: true } },
       scales: {
-        x: { ticks: { color: 'rgba(255,255,255,0.6)', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
-        y: { min: 0, max: 1.05, ticks: { color: 'rgba(255,255,255,0.6)', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } }
+        x: { ticks: { color: chartAxisColor(), font: { size: 10 } }, grid: { color: chartGridColorSubtle() } },
+        y: { min: 0, max: 1.05, ticks: { color: chartAxisColor(), font: { size: 10 } }, grid: { color: chartGridColorSubtle() } }
       }
     }
   });
@@ -975,7 +987,42 @@ function renderRuleBase() {
 // ==========================================
 // SAAT HALAMAN PERTAMA KALI DIBUKA
 // ==========================================
+// ==========================================
+// LIGHT MODE / DARK MODE
+// ==========================================
+function applyTheme(theme) {
+  const icon = document.getElementById('themeIcon');
+  if (theme === 'light') {
+    document.documentElement.classList.add('light-mode');
+    if (icon) icon.textContent = '☀️';
+  } else {
+    document.documentElement.classList.remove('light-mode');
+    if (icon) icon.textContent = '🌙';
+  }
+  localStorage.setItem('bldc-theme', theme);
+
+  // Perbarui warna sumbu grafik membership function yang sudah terlanjur dibuat,
+  // supaya ikut menyesuaikan saat tema diganti di tengah pemakaian
+  [typeof mfMChart !== 'undefined' ? mfMChart : null,
+   typeof mfSChart !== 'undefined' ? mfSChart : null].forEach(ch => {
+    if (!ch) return;
+    ch.options.scales.x.ticks.color = chartAxisColor();
+    ch.options.scales.x.grid.color = chartGridColorSubtle();
+    ch.options.scales.y.ticks.color = chartAxisColor();
+    ch.options.scales.y.grid.color = chartGridColorSubtle();
+    ch.update();
+  });
+}
+
+function toggleTheme() {
+  const isLight = document.documentElement.classList.contains('light-mode');
+  applyTheme(isLight ? 'dark' : 'light');
+}
+
 window.onload = () => {
+  // Sinkronkan ikon tema sesuai preferensi tersimpan (class sudah diset lebih awal di <head>)
+  applyTheme(document.documentElement.classList.contains('light-mode') ? 'light' : 'dark');
+
   initDashboardCharts();
   selectFuzzyType('sugeno'); // default tipe fuzzy aktif: Sugeno
 
@@ -1017,4 +1064,5 @@ window.resetTelemetry  = resetTelemetry;
 window.connectMQTT     = connectMQTT;
 window.disconnectMQTT  = disconnectMQTT;
 window.exportCSV       = exportCSV;
+window.toggleTheme     = toggleTheme;
 window.openOTAPortal   = openOTAPortal;

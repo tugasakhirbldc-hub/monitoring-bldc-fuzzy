@@ -10,6 +10,13 @@
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
   <!-- File CSS utama -->
   <link rel="stylesheet" href="css/style.css">
+  <!-- Terapkan tema tersimpan sedini mungkin agar tidak "kedip" -->
+  <script>
+    (function () {
+      var saved = localStorage.getItem('bldc-theme');
+      if (saved === 'light') document.documentElement.classList.add('light-mode');
+    })();
+  </script>
 </head>
 <body>
 
@@ -43,8 +50,11 @@
         </div>
       </div>
 
-      <!-- Status koneksi MQTT dan jam real-time -->
+      <!-- Status koneksi MQTT, tombol tema, dan jam real-time -->
       <div class="topbar-right">
+        <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Ganti Tema Terang/Gelap">
+          <span id="themeIcon">🌙</span>
+        </button>
         <div class="mqtt-pill" id="mqttPill">
           <div class="mqtt-dot" id="mqttDot"></div>
           <span id="mqttStatusText">MQTT Offline</span>
