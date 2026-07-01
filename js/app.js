@@ -135,6 +135,11 @@ function showFuzzyMode(mode, navEl, event) {
     if (!cSPage) initFuzzySugeno();
     else cSPage.update(); // Update chart Sugeno
   }
+  else if (mode === 'compare') {
+    document.getElementById('fuzzy-compare').style.display = 'block';
+    if (!cCmpM || !cCmpS) initCompareCharts();
+    else { cCmpM.update(); cCmpS.update(); } // Update chart Perbandingan
+  }
 }
 
 // ==========================================
