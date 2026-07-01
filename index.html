@@ -555,7 +555,10 @@
           <!-- Kolom kanan: Status sistem, OTA update, preview MQTT publish -->
           <div class="flex flex-col gap-16">
 
-            <div class="info-grid mb-16" style="grid-template-columns:1fr 1fr">
+            <div class="card">
+              <div class="card-title mb-12">Status Sistem &amp; Aksi</div>
+              
+              <div class="info-grid mb-16" style="grid-template-columns:1fr 1fr">
                 <div class="info-cell">
                   <div class="info-key">Motor</div>
                   <div class="info-val" id="motorStatusText"><span class="dot red"></span>Stopped</div>
@@ -578,27 +581,6 @@
                 </div>
               </div>
 
-            <!-- Status sistem dan tombol start/stop motor -->
-            <div class="card">
-              <div class="card-title mb-12">Status Sistem &amp; Aksi</div>
-              <div class="info-grid mb-16" style="grid-template-columns:1fr 1fr">
-                <div class="info-cell">
-                  <div class="info-key">Motor</div>
-                  <div class="info-val" id="motorStatusText"><span class="dot red"></span>Stopped</div>
-                </div>
-                <div class="info-cell">
-                  <div class="info-key">Setpoint Aktif</div>
-                  <div class="info-val" id="activeSetpoint">0 RPM</div>
-                </div>
-                <div class="info-cell">
-                  <div class="info-key">Fuzzy Aktif</div>
-                  <div class="info-val" id="activeFuzzy">Sugeno</div>
-                </div>
-                <div class="info-cell">
-                  <div class="info-key">Level Beban</div>
-                  <div class="info-val" id="activeLevel">N</div>
-                </div>
-              </div>
               <button class="motor-btn motor-run mb-12" onclick="runMotor()">▶ Start Motor</button>
               <button class="motor-btn motor-stop" onclick="askStop()">■ Stop Motor</button>
             </div>
