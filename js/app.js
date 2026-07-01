@@ -833,7 +833,6 @@ function disconnectMQTT() {
 
   // simpan data ini ke tabel telemetry
   logTelemetry(rpm, pwm, steadyStateError, overshoot, activeFuzzyVal, level);
-}
 
 // ==========================================
 // PENCATATAN DATA TELEMETRY
