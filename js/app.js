@@ -659,58 +659,43 @@ function disconnectMQTT() {
 }
 
 // ==========================================
-// PERBAIKAN: update tampilan RPM aktual + bar progress-nya
+// PROSES DATA MASUK DARI ESP32
 // ==========================================
-  safeSet('mRPM', rpm.toFixed(1)); // Baris ini yang sebelumnya hilang/tertimpa!
+function processIncomingData(rpm, pwm, error, level) {
+  
+  // 1. Update Tampilan RPM Aktual
+  safeSet('mRPM', rpm.toFixed(1));
   safeStyle('barRPM', 'width', Math.min((rpm / 450 * 100), 100) + '%');
 
-  // catat RPM minimum & maksimum selama motor berjalan
+  // 2. Track Peak RPM & Min/Max
   if (motorRunning) {
+    if (rpm > peakRPM) peakRPM = rpm;
     if (rpm < rpmMinVal) { rpmMinVal = rpm; safeSet('rpmMin', rpm.toFixed(1)); }
     if (rpm > rpmMaxVal) { rpmMaxVal = rpm; safeSet('rpmMax', rpm.toFixed(1)); }
   }
 
-  // ==========================================
-  // PERBAIKAN: update tampilan PWM + bar progress-nya (duty cycle 103-255)
-  // ==========================================
-  safeSet('mPWM', pwm.toFixed(2));       // Dibuat 2 desimal
-  safeSet('miniPwmVal', pwm.toFixed(2)); // Dibuat 2 desimal
+  // 3. Update Tampilan PWM (2 desimal)
+  safeSet('mPWM', pwm.toFixed(2));
+  safeSet('miniPwmVal', pwm.toFixed(2)); 
   let pwmPct = ((pwm - 103) / (255 - 103)) * 100;
   safeStyle('barPWM', 'width', Math.max(0, Math.min(pwmPct, 100)) + '%');
 
-  // catat RPM minimum & maksimum selama motor berjalan
-  if (motorRunning) {
-    if (rpm < rpmMinVal) { rpmMinVal = rpm; safeSet('rpmMin', rpm.toFixed(1)); }
-    if (rpm > rpmMaxVal) { rpmMaxVal = rpm; safeSet('rpmMax', rpm.toFixed(1)); }
-  }
-
-  // update tampilan PWM + bar progress-nya (duty cycle 103-255)
-  safeSet('mPWM', pwm.toFixed(0));
-  safeSet('miniPwmVal', pwm.toFixed(0));
-  let pwmPct = ((pwm - 103) / (255 - 103)) * 100;
-  safeStyle('barPWM', 'width', Math.max(0, Math.min(pwmPct, 100)) + '%');
-
-  // ==========================================
-  // FORMAT WAKTU UNTUK LABEL SUMBU X (HH:MM:SS)
-  // ==========================================
+  // 4. Format waktu untuk sumbu X grafik (HH:MM:SS)
   const now = new Date();
   const timeStr = String(now.getHours()).padStart(2, '0') + ':' +
                   String(now.getMinutes()).padStart(2, '0') + ':' +
                   String(now.getSeconds()).padStart(2, '0');
 
-  // geser history grafik: buang data paling lama, tambah data baru di akhir
+  // 5. Geser array history grafik
   rpmHistory.push(rpm); rpmHistory.shift();
   rpmTimeLabels.push(timeStr); rpmTimeLabels.shift();
   miniHistory.push(rpm); miniHistory.shift();
 
-  // ==========================================
-  // HITUNG RISE TIME SECARA REAL-TIME
-  // (waktu yang dibutuhkan RPM untuk mencapai 90% dari setpoint)
-  // ==========================================
+  // 6. Hitung Rise Time
   if (isRising && currentSetpointVal > 0) {
     if (rpm >= currentSetpointVal * 0.90) {
       sysRiseTime = (Date.now() - startTime) / 1000;
-      isRising = false; // sudah sampai target, berhenti menghitung rise time
+      isRising = false; // sudah sampai target
     } else {
       sysRiseTime = (Date.now() - startTime) / 1000;
     }
@@ -718,121 +703,88 @@ function disconnectMQTT() {
   safeSet('gaugeSetpointVal', currentSetpointVal);
   safeSet('gaugeRiseTimeVal', sysRiseTime.toFixed(1) + ' s');
 
-  // ==========================================
-  // HITUNG STEADY-STATE ERROR (SSE) YANG SEBENARNYA
-  // (selisih setpoint dengan rata-rata RPM 5 data terakhir, saat sudah stabil)
-  // ==========================================
+  // 7. Hitung Steady-State Error (SSE) yang lebih akurat
   let steadyStateError = error;
   if (peakRPM >= currentSetpointVal * 0.90 && currentSetpointVal > 0 && rpmHistory.length >= 5) {
     const last5 = rpmHistory.slice(-5);
     const avgRpm = last5.reduce((a, b) => a + b, 0) / 5;
     steadyStateError = currentSetpointVal - avgRpm;
   }
-
   safeSet('mError', Math.abs(steadyStateError).toFixed(1));
   safeStyle('barError', 'width', Math.min(Math.abs(steadyStateError), 100) + '%');
 
+  // 8. Hitung Overshoot (%)
+  let overshoot = 0;
+  if (currentSetpointVal > 0 && peakRPM > currentSetpointVal) {
+    overshoot = ((peakRPM - currentSetpointVal) / currentSetpointVal) * 100;
+  }
   safeSet('overshootVal', overshoot.toFixed(1));
-  safeSet('miniOvershootVal', overshoot.toFixed(1));
   safeStyle('barOvershoot', 'width', Math.min(overshoot, 100) + '%');
 
-  // update tampilan speedometer (gauge)
+  // 9. Update Speedometer
   if (gaugeChart) {
     const val = Math.min(rpm, 450);
     gaugeChart.data.datasets[0].data = [val, 450 - val];
     gaugeChart.update();
   }
 
-  // ==========================================
-  // AUTO-ZOOM SUMBU Y GRAFIK (beda tampilan saat fase transien vs stabil)
-  // ==========================================
+  // 10. Auto-zoom Sumbu Y Grafik
   let yMin = 0;
   let yMax = 100;
-
   if (currentSetpointVal > 0) {
     if (isRising) {
-      // fase transien (mendaki ke target): grafik terlihat penuh dari 0
       yMin = 0;
       yMax = currentSetpointVal + 50;
     } else {
-      // fase stabil: auto-zoom di sekitar setpoint ±50 RPM biar lebih detail
-      yMin = Math.max(0, currentSetpointVal - 50); // jangan sampai minus
+      yMin = Math.max(0, currentSetpointVal - 50);
       yMax = currentSetpointVal + 50;
     }
   }
 
-  // terapkan rentang zoom + data terbaru ke grafik utama dashboard
+  // Update grafik utama & mini chart
   if (rpmChart) {
     rpmChart.options.scales.y.min = yMin;
     rpmChart.options.scales.y.max = yMax;
-    rpmChart.data.labels = rpmTimeLabels; // sumbu X pakai label waktu
+    rpmChart.data.labels = rpmTimeLabels;
     rpmChart.data.datasets[0].data = rpmHistory;
     rpmChart.data.datasets[1].data = Array(30).fill(currentSetpointVal);
     rpmChart.update('none');
   }
-
-  // terapkan rentang zoom yang sama ke mini chart
   if (miniChart) {
     miniChart.options.scales.y.min = yMin;
     miniChart.options.scales.y.max = yMax;
     miniChart.update('none');
   }
 
-  // ==========================================
-  // REKAM GRAFIK LIVE 60 DETIK UNTUK HALAMAN TIPE FUZZY
-  // ==========================================
+  // 11. Rekam Grafik Live 60 Detik untuk Halaman Fuzzy
   if (isFuzzyRecording) {
     liveHistoryRpm.push(rpm);
     liveHistorySp.push(currentSetpointVal);
     liveHistoryLbl.push(fuzzyTimeCounter + 's');
     fuzzyTimeCounter++;
 
-    if (fuzzyTimeCounter >= 60) {
-      isFuzzyRecording = false; // bekukan grafik setelah 60 detik
-    }
+    if (fuzzyTimeCounter >= 60) isFuzzyRecording = false;
 
-    // update semua chart yang sedang merekam (Mamdani, Sugeno, Compare)
-    if (cMPage) {
-      cMPage.options.scales.y.min = yMin; cMPage.options.scales.y.max = yMax;
-      cMPage.data.labels = liveHistoryLbl;
-      cMPage.data.datasets[0].data = liveHistoryRpm;
-      cMPage.data.datasets[1].data = liveHistorySp;
-      cMPage.update('none');
-    }
-    if (cSPage) {
-      cSPage.options.scales.y.min = yMin; cSPage.options.scales.y.max = yMax;
-      cSPage.data.labels = liveHistoryLbl;
-      cSPage.data.datasets[0].data = liveHistoryRpm;
-      cSPage.data.datasets[1].data = liveHistorySp;
-      cSPage.update('none');
-    }
-    if (cCmpM) {
-      cCmpM.options.scales.y.min = yMin; cCmpM.options.scales.y.max = yMax;
-      cCmpM.data.labels = liveHistoryLbl;
-      cCmpM.data.datasets[0].data = liveHistoryRpm;
-      cCmpM.data.datasets[1].data = liveHistorySp;
-      cCmpM.update('none');
-    }
-    if (cCmpS) {
-      cCmpS.options.scales.y.min = yMin; cCmpS.options.scales.y.max = yMax;
-      cCmpS.data.labels = liveHistoryLbl;
-      cCmpS.data.datasets[0].data = liveHistoryRpm;
-      cCmpS.data.datasets[1].data = liveHistorySp;
-      cCmpS.update('none');
-    }
+    [cMPage, cSPage, cCmpM, cCmpS].forEach(chart => {
+      if (chart) {
+        chart.options.scales.y.min = yMin; 
+        chart.options.scales.y.max = yMax;
+        chart.data.labels = liveHistoryLbl;
+        chart.data.datasets[0].data = liveHistoryRpm;
+        chart.data.datasets[1].data = liveHistorySp;
+        chart.update('none');
+      }
+    });
   }
 
-  // ==========================================
-  // HITUNG ERROR INSTAN (Setpoint - RPM saat ini)
-  // ==========================================
+  // 12. Hitung Error Instan
   let errorInstan = currentSetpointVal - rpm;
-
   safeSet('mErrorInstan', errorInstan.toFixed(1));
-  // pakai Math.abs supaya bar tetap muncul walaupun error-nya minus
   safeStyle('barErrorInstan', 'width', Math.min(Math.abs(errorInstan) / (currentSetpointVal || 1) * 100, 100) + '%');
 
-  // simpan data ini ke tabel telemetry
+  // 13. Log ke Telemetry
   logTelemetry(rpm, pwm, steadyStateError, overshoot, activeFuzzyVal, level);
+}
 
 // ==========================================
 // PENCATATAN DATA TELEMETRY
