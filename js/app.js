@@ -52,6 +52,11 @@ const rpmTimeLabels = Array(30).fill(''); // label waktu di sumbu X, harus ada b
 const miniHistory   = Array(15).fill(0);
 const allData       = []; // semua data telemetry yang sudah masuk (buat tabel & export CSV)
 
+// Variabel pengukuran latensi
+let latencyLog = [];       // menyimpan riwayat latensi untuk rata-rata
+let lastCmdSentAt = 0;
+let lastCmdTopic = '';
+
 // ==========================================
 // FUNGSI BANTUAN (HELPER)
 // Supaya tidak perlu cek elemen null berulang-ulang di setiap pemanggilan
@@ -551,6 +556,12 @@ function runMotor() {
   // kirim perintah Start ke ESP32
   mqttClient.publish(TOPICS.CTRL_START, '1', { qos: 1 });
 
+  lastCmdSentAt = performance.now();
+  lastCmdTopic = TOPICS.CTRL_START;
+
+  lastCmdSentAt = performance.now();
+  lastCmdTopic = TOPICS.CTRL_STOP;
+
   // kirim juga nilai setpoint terbaru sesaat setelah start
   mqttClient.publish(TOPICS.CTRL_SETPOINT, String(currentSetpointVal), { qos: 1 });
 
@@ -643,6 +654,19 @@ function connectMQTT() {
   // saat ada pesan data masuk dari ESP32
   mqttClient.on('message', (topic, message) => {
     const raw = message.toString().trim();
+    // --- Ukur latensi saat data telemetry pertama masuk setelah command dikirim ---
+    if (lastCmdSentAt && topic.includes('telemetry')) {
+      const latencyMs = performance.now() - lastCmdSentAt;
+      latencyLog.push(latencyMs);
+      if (latencyLog.length > 50) latencyLog.shift(); // batasi riwayat
+
+      const avgLatency = latencyLog.reduce((a, b) => a + b, 0) / latencyLog.length;
+      // Memastikan elemen ada di HTML sebelum mengubahnya (opsional)
+      safeSet('latencyNow', latencyMs.toFixed(1) + ' ms');
+      safeSet('latencyAvg', avgLatency.toFixed(1) + ' ms');
+
+      lastCmdSentAt = 0; // reset supaya tidak diukur berkali-kali
+    }
     msgCount++;
     safeSet('mqttMsgCount', msgCount);
     safeSet('lastMsg', new Date().toLocaleTimeString('id-ID'));
