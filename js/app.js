@@ -751,16 +751,16 @@ function processIncomingData(rpm, pwm, error, level) {
     gaugeChart.update();
   }
 
-  // 10. Auto-zoom Sumbu Y Grafik
+  // 10. Auto-zoom Sumbu Y Grafik (+70 dan -70 dari Setpoint)
   let yMin = 0;
   let yMax = 100;
   if (currentSetpointVal > 0) {
     if (isRising) {
       yMin = 0;
-      yMax = currentSetpointVal + 50;
+      yMax = currentSetpointVal + 70; 
     } else {
-      yMin = Math.max(0, currentSetpointVal - 50);
-      yMax = currentSetpointVal + 50;
+      yMin = Math.max(0, currentSetpointVal - 70);
+      yMax = currentSetpointVal + 70; 
     }
   }
 
