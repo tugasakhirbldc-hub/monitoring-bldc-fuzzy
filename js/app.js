@@ -193,11 +193,11 @@ function makeMFChart(canvasId) {
   for (let i = -200; i <= 200; i += 10) labels.push(i);
 
   // MF Input Error — persis parameter di fuzzySugeno / fuzzyMamdani ESP32
-  const dNB = labels.map(x => trapmf(x, -200, -200, -150, -75));
+  const dNB = labels.map(x => trimf(x, -200, -150, -75));
   const dNS = labels.map(x => trimf(x,  -150,  -75,    0));
   const dZE = labels.map(x => trimf(x,   -75,    0,   75));
   const dPS = labels.map(x => trimf(x,     0,   75,  150));
-  const dPB = labels.map(x => trapmf(x,   75,  150,  200, 200));
+  const dPB = labels.map(x => trimf(x,   75,  150, 200));
 
   return new Chart(ctx, {
     type: 'line',
