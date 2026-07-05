@@ -119,7 +119,8 @@ function showFuzzyMode(mode, navEl, event) {
 
   document.querySelectorAll('.topbar-nav .nav-item').forEach(n => n.classList.remove('active', 'sub-open'));
   if (navEl) navEl.classList.add('active');
-  document.getElementById('fuzzy-sub').classList.remove('open');
+  
+  // Baris document.getElementById('fuzzy-sub')... sudah dihapus dari sini
 
   document.querySelectorAll('.fuzzy-sub-page').forEach(p => p.style.display = 'none');
 
