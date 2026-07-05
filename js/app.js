@@ -111,17 +111,14 @@ function toggleSubMenu(menuId, event) {
 }
 
 // Pindah ke sub-halaman Tipe Fuzzy
-// Dipanggil dari HTML: showFuzzyMode('mamdani', event)
-function showFuzzyMode(mode, event) {
+function showFuzzyMode(mode, navEl, event) {
   if (event) event.stopPropagation();
 
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-fuzzy').classList.add('active');
 
-  // Tandai menu "Tipe Fuzzy" sebagai aktif di navbar
   document.querySelectorAll('.topbar-nav .nav-item').forEach(n => n.classList.remove('active', 'sub-open'));
-  const navFuzzy = document.getElementById('nav-fuzzy');
-  if (navFuzzy) navFuzzy.classList.add('active');
+  if (navEl) navEl.classList.add('active');
   document.getElementById('fuzzy-sub').classList.remove('open');
 
   document.querySelectorAll('.fuzzy-sub-page').forEach(p => p.style.display = 'none');
