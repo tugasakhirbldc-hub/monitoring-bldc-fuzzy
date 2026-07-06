@@ -383,7 +383,7 @@ function initFuzzyMamdani() {
     },
     options: fuzzyChartOptions
   });
-  mfMChart = makeMFChart('mfMamdani');
+  mfMChart = makeMFChart('mfMamdani', 'mamdani', 'error'); 
 }
 
 function initFuzzySugeno() {
@@ -400,7 +400,7 @@ function initFuzzySugeno() {
     },
     options: fuzzyChartOptions
   });
-  mfSChart = makeMFChart('mfSugeno');
+  mfSChart = makeMFChart('mfSugeno',  'sugeno',  'error');
 }
 
 function initCompareCharts() {
