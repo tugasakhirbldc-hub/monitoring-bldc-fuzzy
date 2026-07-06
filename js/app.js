@@ -182,32 +182,80 @@ function chartGridColorSubtle() {
 }
 
 // ==========================================
-// GRAFIK MEMBERSHIP FUNCTION INPUT ERROR
-// Domain: -200 s.d 200 (sesuai ESP32 .ino)
+// MEMBERSHIP FUNCTION (diperbaiki agar selalu runcing)
 // ==========================================
-function makeMFChart(canvasId) {
+function trimf(x, a, b, c) {
+  if (x === b) return 1;                    // cek titik puncak LEBIH DULU
+  if (x <= a || x >= c) return 0;
+  if (x < b) return (x - a) / (b - a);
+  return (c - x) / (c - b);
+}
+
+// ==========================================
+// MEMBERSHIP FUNCTION (fixed: puncak selalu runcing, sesuai MATLAB)
+// ==========================================
+function trimf(x, a, b, c) {
+  if (x === b) return 1;                    // cek titik puncak LEBIH DULU
+  if (x <= a || x >= c) return 0;
+  if (x < b) return (x - a) / (b - a);
+  return (c - x) / (c - b);
+}
+
+// Parameter PERSIS sesuai BLDCMAMDANI.fis dan BLDCSUGENO.fis
+const MF_PARAMS = {
+  mamdani: {
+    error: {
+      NB: [-200, -200, -100], NS: [-200, -100, 0], ZE: [-100, 0, 100],
+      PS: [0, 100, 200],      PB: [100, 200, 200]
+    },
+    delta_error: {
+      NB: [-50, -50, -25], NS: [-50, -25, 0], ZE: [-25, 0, 25],
+      PS: [0, 25, 50],     PB: [25, 50, 50]
+    }
+  },
+  sugeno: {
+    error: {
+      NB: [-200, -150, -75], NS: [-150, -75, 0], ZE: [-75, 0, 75],
+      PS: [0, 75, 150],      PB: [75, 150, 200]
+    },
+    delta_error: {   // identik dengan Mamdani (dikonfirmasi dari kedua file .fis)
+      NB: [-50, -50, -25], NS: [-50, -25, 0], ZE: [-25, 0, 25],
+      PS: [0, 25, 50],     PB: [25, 50, 50]
+    }
+  }
+};
+
+// ==========================================
+// GRAFIK MEMBERSHIP FUNCTION (generik untuk error & delta_error)
+// ==========================================
+function makeMFChart(canvasId, fuzzyType, inputName) {
   const ctx = document.getElementById(canvasId);
   if (!ctx) return null;
 
-  const labels = [];
-  for (let i = -200; i <= 200; i += 10) labels.push(i);
+  const isDeltaError = inputName === 'delta_error';
+  const domainMin = isDeltaError ? -50 : -200;
+  const domainMax = isDeltaError ?  50 :  200;
+  const step = isDeltaError ? 0.5 : 2;   // resolusi diperhalus supaya puncak tajam
 
-  // MF Input Error — persis parameter di fuzzySugeno / fuzzyMamdani ESP32
-  const dNB = labels.map(x => trimf(x, -200, -150, -75));
-  const dNS = labels.map(x => trimf(x,  -150,  -75,    0));
-  const dZE = labels.map(x => trimf(x,   -75,    0,   75));
-  const dPS = labels.map(x => trimf(x,     0,   75,  150));
-  const dPB = labels.map(x => trimf(x,   75,  150, 200));
+  const labels = [];
+  for (let x = domainMin; x <= domainMax; x += step) labels.push(x);
+
+  const p = MF_PARAMS[fuzzyType][inputName];
+  const dNB = labels.map(x => trimf(x, ...p.NB));
+  const dNS = labels.map(x => trimf(x, ...p.NS));
+  const dZE = labels.map(x => trimf(x, ...p.ZE));
+  const dPS = labels.map(x => trimf(x, ...p.PS));
+  const dPB = labels.map(x => trimf(x, ...p.PB));
 
   return new Chart(ctx, {
     type: 'line',
     data: {
       labels: labels,
       datasets: [
-        { label: 'NB', data: dNB, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.15)',   fill: true, tension: 0, pointRadius: 0, borderWidth: 2 },
-        { label: 'NS', data: dNS, borderColor: '#f97316', backgroundColor: 'rgba(249,115,22,0.15)',  fill: true, tension: 0, pointRadius: 0, borderWidth: 2 },
-        { label: 'ZE', data: dZE, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.15)',  fill: true, tension: 0, pointRadius: 0, borderWidth: 2 },
-        { label: 'PS', data: dPS, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.15)',  fill: true, tension: 0, pointRadius: 0, borderWidth: 2 },
+        { label: 'NB', data: dNB, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.15)',  fill: true, tension: 0, pointRadius: 0, borderWidth: 2 },
+        { label: 'NS', data: dNS, borderColor: '#f97316', backgroundColor: 'rgba(249,115,22,0.15)', fill: true, tension: 0, pointRadius: 0, borderWidth: 2 },
+        { label: 'ZE', data: dZE, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.15)', fill: true, tension: 0, pointRadius: 0, borderWidth: 2 },
+        { label: 'PS', data: dPS, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.15)', fill: true, tension: 0, pointRadius: 0, borderWidth: 2 },
         { label: 'PB', data: dPB, borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.15)', fill: true, tension: 0, pointRadius: 0, borderWidth: 2 }
       ]
     },
@@ -223,7 +271,7 @@ function makeMFChart(canvasId) {
   });
 }
 
-// Opsi grafik live (dengan label waktu di sumbu X)
+
 const fuzzyChartOptions = {
   responsive: true,
   maintainAspectRatio: false,
