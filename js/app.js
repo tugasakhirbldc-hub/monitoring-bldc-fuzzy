@@ -201,29 +201,36 @@ function trimf(x, a, b, c) {
   return (c - x) / (c - b);
 }
 
-// Parameter PERSIS sesuai BLDCMAMDANI.fis dan BLDCSUGENO.fis
+// Parameter PERSIS sesuai BLDC_Fuzzy_Mamdani_Fix.fis dan BLDC_Fuzzy_Sugeno_Fix.fis
+// (error & delta_error IDENTIK di kedua file .fis -> dipakai sama utk mamdani & sugeno)
+// Catatan: NB & PB pakai trapmf (4 titik, bahu rata), NS/ZE/PS pakai trimf (3 titik)
 const MF_PARAMS = {
   mamdani: {
     error: {
-      NB: [-200, -200, -100], NS: [-200, -100, 0], ZE: [-100, 0, 100],
-      PS: [0, 100, 200],      PB: [100, 200, 200]
+      NB: [-200, -200, -150, -75], NS: [-150, -75, 0], ZE: [-50, 0, 50],
+      PS: [0, 75, 150],            PB: [75, 150, 200, 200]
     },
     delta_error: {
-      NB: [-50, -50, -25], NS: [-50, -25, 0], ZE: [-25, 0, 25],
-      PS: [0, 25, 50],     PB: [25, 50, 50]
+      NB: [-13333, -13333, -10000, -5000], NS: [-10000, -5000, 0], ZE: [-2500, 0, 2500],
+      PS: [0, 5000, 10000],                PB: [5000, 10000, 13333, 13333]
     }
   },
   sugeno: {
     error: {
-      NB: [-200, -150, -75], NS: [-150, -75, 0], ZE: [-75, 0, 75],
-      PS: [0, 75, 150],      PB: [75, 150, 200]
+      NB: [-200, -200, -150, -75], NS: [-150, -75, 0], ZE: [-50, 0, 50],
+      PS: [0, 75, 150],            PB: [75, 150, 200, 200]
     },
     delta_error: {   // identik dengan Mamdani (dikonfirmasi dari kedua file .fis)
-      NB: [-50, -50, -25], NS: [-50, -25, 0], ZE: [-25, 0, 25],
-      PS: [0, 25, 50],     PB: [25, 50, 50]
+      NB: [-13333, -13333, -10000, -5000], NS: [-10000, -5000, 0], ZE: [-2500, 0, 2500],
+      PS: [0, 5000, 10000],                PB: [5000, 10000, 13333, 13333]
     }
   }
 };
+
+// Evaluasi MF generik: array 3 elemen -> trimf, array 4 elemen -> trapmf
+function evalMF(x, p) {
+  return p.length === 4 ? trapmf(x, p[0], p[1], p[2], p[3]) : trimf(x, p[0], p[1], p[2]);
+}
 
 // ==========================================
 // GRAFIK MEMBERSHIP FUNCTION (generik untuk error & delta_error)
@@ -233,19 +240,19 @@ function makeMFChart(canvasId, fuzzyType, inputName) {
   if (!ctx) return null;
 
   const isDeltaError = inputName === 'delta_error';
-  const domainMin = isDeltaError ? -50 : -200;
-  const domainMax = isDeltaError ?  50 :  200;
-  const step = isDeltaError ? 0.5 : 2;   // resolusi diperhalus supaya puncak tajam
+  const domainMin = isDeltaError ? -13333 : -200;
+  const domainMax = isDeltaError ?  13333 :  200;
+  const step = isDeltaError ? 100 : 2;   // resolusi diperhalus supaya puncak tajam
 
   const labels = [];
   for (let x = domainMin; x <= domainMax; x += step) labels.push(x);
 
   const p = MF_PARAMS[fuzzyType][inputName];
-  const dNB = labels.map(x => trimf(x, ...p.NB));
-  const dNS = labels.map(x => trimf(x, ...p.NS));
-  const dZE = labels.map(x => trimf(x, ...p.ZE));
-  const dPS = labels.map(x => trimf(x, ...p.PS));
-  const dPB = labels.map(x => trimf(x, ...p.PB));
+  const dNB = labels.map(x => evalMF(x, p.NB));
+  const dNS = labels.map(x => evalMF(x, p.NS));
+  const dZE = labels.map(x => evalMF(x, p.ZE));
+  const dPS = labels.map(x => evalMF(x, p.PS));
+  const dPB = labels.map(x => evalMF(x, p.PB));
 
   return new Chart(ctx, {
     type: 'line',
@@ -931,7 +938,7 @@ function renderRuleBase() {
   // Matriks output (baris = Error: NB..PB, kolom = DeltaError: NB..PB)
   const rules = [
     [-255, -255, -127, -127,    0],  // Error NB
-    [-255, -255, -127,    0,  127],  // Error NS
+    [-255, -127, -127,    0,  127],  // Error NS
     [-127, -127,    0,  127,  127],  // Error ZE
     [-127,    0,  127,  127,  255],  // Error PS
     [   0,  127,  127,  255,  255]   // Error PB
