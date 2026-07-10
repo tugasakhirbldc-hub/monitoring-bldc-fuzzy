@@ -661,7 +661,96 @@ function connectMQTT() {
     if (raw.includes(',')) {
       const parts = raw.split(',');
       if (parts.length >= 4) {
-        processIncomingData(parseFloat(parts[0]), parseFloat(parts[1]), parseFloat(parts[2]), parts[3]);
+        // Ekstrak data utama ESP32
+        const pRpm   = parseFloat(parts[0]);
+        const pPwm   = parseFloat(parts[1]);
+        const pError = parseFloat(parts[2]);
+        const pLevel = parts[3];
+
+        // SINKRONISASI STATE ESP32 KE SEMUA DEVICE (HP/Laptop)
+        if (parts.length >= 7) {
+          const espSetpoint = parseFloat(parts[4]);
+          const espStatus   = (parts[5] === "1"); // true jika running
+          const espFuzzy    = parts[6];           // 'mamdani' atau 'sugeno'
+
+          // 1. Sinkronkan Setpoint & Garis Grafik
+          if (currentSetpointVal !== espSetpoint) {
+            currentSetpointVal = espSetpoint;
+            safeSet('spRPMVal', espSetpoint);
+            safeSet('mSetpoint', espSetpoint);
+            safeSet('activeSetpoint', espSetpoint + ' RPM');
+            safeStyle('barSetpoint', 'width', Math.min((espSetpoint / 450 * 100), 100) + '%');
+            if (document.getElementById('spRPMInput')) document.getElementById('spRPMInput').value = espSetpoint;
+          }
+
+          // 2. Sinkronkan Status Start/Stop
+          if (motorRunning !== espStatus) {
+            if (espStatus) { // Jika mendadak start dari device lain
+              peakRPM = 0; rpmMinVal = Infinity; rpmMaxVal = 0;
+              startTime = Date.now(); sysRiseTime = 0; isRising = true;
+              rpmHistory.fill(0); rpmTimeLabels.fill(''); miniHistory.fill(0);
+              if (espFuzzy === 'mamdani') { mamdaniRpm = []; mamdaniSp = []; mamdaniLbl = []; }
+              else { sugenoRpm = []; sugenoSp = []; sugenoLbl = []; }
+              
+              safeSet('motorStatusBadge', '● Running');
+              document.getElementById('motorStatusBadge').className = 'badge badge-green';
+              safeSet('dashStatusBadge', '● Running');
+              document.getElementById('dashStatusBadge').className = 'badge badge-green';
+              safeHTML('motorStatusText', '<span class="dot green"></span>Running');
+            } else { // Jika mendadak stop dari device lain
+              safeSet('motorStatusBadge', '● Stopped');
+              document.getElementById('motorStatusBadge').className = 'badge badge-red';
+              safeSet('dashStatusBadge', '● Stopped');
+              document.getElementById('dashStatusBadge').className = 'badge badge-red';
+              safeHTML('motorStatusText', '<span class="dot red"></span>Stopped');
+            }
+            motorRunning = espStatus;
+          }
+
+          // 3. Sinkronkan Tipe Fuzzy yang Aktif
+          if (activeFuzzyVal !== espFuzzy) {
+            activeFuzzyVal = espFuzzy;
+            safeSet('dashFuzzyBadge', 'Fuzzy: ' + (espFuzzy === 'mamdani' ? 'Mamdani' : 'Sugeno'));
+            safeSet('activeFuzzy', espFuzzy === 'mamdani' ? 'Mamdani' : 'Sugeno');
+            const optM = document.getElementById('fuzzyOptM');
+            const optS = document.getElementById('fuzzyOptS');
+            const chkM = document.getElementById('checkM');
+            const chkS = document.getElementById('checkS');
+            
+            if (espFuzzy === 'mamdani' && optM && optS) {
+              optS.classList.remove('selected-green'); optM.classList.add('selected-blue');
+              optM.style.borderColor = 'rgba(59,130,246,0.45)'; optM.style.background = 'rgba(59,130,246,0.15)';
+              optS.style.borderColor = 'transparent'; optS.style.background = 'transparent';
+              chkM.style.opacity = '1'; chkS.style.opacity = '0';
+              document.getElementById('foNameM').style.color = '#7dd3fc';
+              document.getElementById('foNameS').style.color = 'var(--text-hi)';
+            } else if (espFuzzy === 'sugeno' && optM && optS) {
+              optM.classList.remove('selected-blue'); optS.classList.add('selected-green');
+              optS.style.borderColor = 'rgba(16,185,129,0.45)'; optS.style.background = 'rgba(16,185,129,0.15)';
+              optM.style.borderColor = 'transparent'; optM.style.background = 'transparent';
+              chkS.style.opacity = '1'; chkM.style.opacity = '0';
+              document.getElementById('foNameS').style.color = '#6ee7b7';
+              document.getElementById('foNameM').style.color = 'var(--text-hi)';
+            }
+          }
+
+          // 4. Sinkronkan Tombol Level Beban
+          if (activeLevelVal !== pLevel) {
+            activeLevelVal = pLevel;
+            safeSet('dashLevel', pLevel);
+            safeSet('activeLevel', pLevel);
+            document.querySelectorAll('.level-btns .level-btn').forEach(b => {
+              b.classList.remove('active');
+              if ((pLevel === 'N' && b.innerText.includes('0 Load')) || b.innerText.includes('Load ' + pLevel)) {
+                b.classList.add('active');
+              }
+            });
+          }
+          
+          updatePreviewUI();
+        }
+
+        processIncomingData(pRpm, pPwm, pError, pLevel);
       }
     }
   });
