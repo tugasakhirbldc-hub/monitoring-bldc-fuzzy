@@ -294,7 +294,6 @@ const fuzzyChartOptions = {
   }
 };
 
-// Plugin teks RPM di tengah gauge speedometer
 // Plugin teks KM/JAM di tengah gauge speedometer
 const gaugePlugin = {
   id: 'gaugeCenterText',
@@ -316,7 +315,6 @@ const gaugePlugin = {
     ctx.fillText('km/jam', width / 2, height * 0.92); // Label diubah jadi km/jam
     ctx.restore();
   }
-};
 };
 
 // ==========================================
