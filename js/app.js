@@ -295,21 +295,28 @@ const fuzzyChartOptions = {
 };
 
 // Plugin teks RPM di tengah gauge speedometer
+// Plugin teks KM/JAM di tengah gauge speedometer
 const gaugePlugin = {
   id: 'gaugeCenterText',
   afterDraw(chart) {
     const { ctx, width, height } = chart;
     ctx.save();
-    const rpmText = document.getElementById('mRPM')?.textContent || '0';
+    
+    // Ambil nilai RPM aktual dari elemen HTML, lalu konversi
+    const rpmVal = parseFloat(document.getElementById('mRPM')?.textContent || '0');
+    const kmhVal = (rpmVal * 0.0528).toFixed(2); // Dikalikan 0.0528 dan dibulatkan 2 desimal
+
     ctx.font      = '700 34px Rajdhani, sans-serif';
     ctx.fillStyle = '#93c5fd';
     ctx.textAlign = 'center';
-    ctx.fillText(rpmText, width / 2, height * 0.78);
+    ctx.fillText(kmhVal, width / 2, height * 0.78);
+    
     ctx.font      = '500 13px Rajdhani, sans-serif';
     ctx.fillStyle = '#94a3c8';
-    ctx.fillText('RPM', width / 2, height * 0.92);
+    ctx.fillText('km/jam', width / 2, height * 0.92); // Label diubah jadi km/jam
     ctx.restore();
   }
+};
 };
 
 // ==========================================
@@ -343,7 +350,8 @@ function initDashboardCharts() {
     gaugeChart = new Chart(ctxGauge, {
       type: 'doughnut',
       data: {
-        datasets: [{ data: [0, 450], backgroundColor: ['#3b82f6', 'rgba(255,255,255,0.05)'], borderWidth: 0, circumference: 180, rotation: 270 }]
+        // Skala 0 - 11 km/jam (11 km/jam ~ 208 RPM)
+        datasets: [{ data: [0, 11], backgroundColor: ['#3b82f6', 'rgba(255,255,255,0.05)'], borderWidth: 0, circumference: 180, rotation: 270 }]
       },
       options: {
         responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
@@ -828,10 +836,11 @@ function processIncomingData(rpm, pwm, error, level) {
   safeSet('overshootVal', overshoot.toFixed(1));
   safeStyle('barOvershoot', 'width', Math.min(overshoot, 100) + '%');
 
-  // 7. Speedometer
+  // 7. Speedometer (Dikonversi ke km/jam)
   if (gaugeChart) {
-    const val = Math.min(rpm, 450);
-    gaugeChart.data.datasets[0].data = [val, 450 - val];
+    let kmh = rpm * 0.0528;
+    const val = Math.min(kmh, 11); // Mentok di 11 km/jam
+    gaugeChart.data.datasets[0].data = [val, 11 - val];
     gaugeChart.update();
   }
 
