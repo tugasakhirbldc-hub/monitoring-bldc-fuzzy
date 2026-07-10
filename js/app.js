@@ -617,8 +617,6 @@ function resetTelemetry() {
   if (body) body.innerHTML = '';
   safeSet('statTotal', '0');
   safeSet('statAvgRPM', '0');
-  safeSet('statErrM', '0%');
-  safeSet('statErrS', '0%');
   safeSet('dataCount', '0 entri');
 }
 
@@ -816,17 +814,7 @@ function processIncomingData(rpm, pwm, error, level) {
   safeSet('gaugeSetpointVal', currentSetpointVal);
   safeSet('gaugeRiseTimeVal', sysRiseTime.toFixed(1) + ' s');
 
-  // 5. Steady-State Error
-  let steadyStateError = error;
-  if (peakRPM >= currentSetpointVal * 0.90 && currentSetpointVal > 0 && rpmHistory.length >= 5) {
-    const last5  = rpmHistory.slice(-5);
-    const avgRpm = last5.reduce((a, b) => a + b, 0) / 5;
-    steadyStateError = currentSetpointVal - avgRpm;
-  }
-  safeSet('mError', Math.abs(steadyStateError).toFixed(1));
-  safeStyle('barError', 'width', Math.min(Math.abs(steadyStateError), 100) + '%');
-
-  // 6. Overshoot
+  // 5. Overshoot
   let overshoot = 0;
   if (currentSetpointVal > 0 && peakRPM > currentSetpointVal) {
     overshoot = ((peakRPM - currentSetpointVal) / currentSetpointVal) * 100;
@@ -834,7 +822,7 @@ function processIncomingData(rpm, pwm, error, level) {
   safeSet('overshootVal', overshoot.toFixed(1));
   safeStyle('barOvershoot', 'width', Math.min(overshoot, 100) + '%');
 
-  // 7. Speedometer (Dikonversi ke km/jam)
+  // 6. Speedometer (Dikonversi ke km/jam)
   if (gaugeChart) {
     let kmh = rpm * 0.0528;
     const val = Math.min(kmh, 11); // Mentok di 11 km/jam
@@ -842,7 +830,7 @@ function processIncomingData(rpm, pwm, error, level) {
     gaugeChart.update();
   }
 
-  // 8. Auto-zoom sumbu Y
+  // 7. Auto-zoom sumbu Y
   let yMin = 0, yMax = 100;
   if (currentSetpointVal > 0) {
     yMin = isRising ? 0 : Math.max(0, currentSetpointVal - 70);
@@ -863,7 +851,7 @@ function processIncomingData(rpm, pwm, error, level) {
     miniChart.update('none');
   }
 
-  // 9. Rekam ke buffer tipe fuzzy yang SEDANG AKTIF saja
+  // 8. Rekam ke buffer tipe fuzzy yang SEDANG AKTIF saja
   //    (hanya saat motor berjalan)
   if (motorRunning) {
     if (activeFuzzyVal === 'mamdani') {
@@ -902,13 +890,13 @@ function processIncomingData(rpm, pwm, error, level) {
     }
   }
 
-  // 10. Error Instan
+  // 9. Error Instan
   let errorInstan = currentSetpointVal - rpm;
   safeSet('mErrorInstan', errorInstan.toFixed(1));
   safeStyle('barErrorInstan', 'width', Math.min(Math.abs(errorInstan) / (currentSetpointVal || 1) * 100, 100) + '%');
 
-  // 11. Log ke telemetry
-  logTelemetry(rpm, pwm, steadyStateError, overshoot, activeFuzzyVal, level);
+  // 10. Log ke telemetry
+  logTelemetry(rpm, pwm, errorInstan, overshoot, activeFuzzyVal, level);
 }
 
 // ==========================================
