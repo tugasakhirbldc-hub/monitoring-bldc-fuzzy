@@ -201,28 +201,35 @@ function trimf(x, a, b, c) {
   return (c - x) / (c - b);
 }
 
-// Parameter PERSIS sesuai BLDC_Fuzzy_Mamdani_Fix.fis dan BLDC_Fuzzy_Sugeno_Fix.fis
-// (error & delta_error IDENTIK di kedua file .fis -> dipakai sama utk mamdani & sugeno)
-// Catatan: NB & PB pakai trapmf (4 titik, bahu rata), NS/ZE/PS pakai trimf (3 titik)
+// Parameter PERSIS sesuai gambar MATLAB terbaru (ae, ai, dan u dengan 9 MF)
 const MF_PARAMS = {
   mamdani: {
-    error: {
-      NB: [-200, -200, -150, -75], NS: [-150, -75, 0], ZE: [-50, 0, 50],
-      PS: [0, 75, 150],            PB: [75, 150, 200, 200]
+    error: { // Input ae [-200 200]
+      NB: [-300, -200, -100], NS: [-200, -100, 0], ZE: [-100, 0, 100],
+      PS: [0, 100, 200],      PB: [100, 200, 300]
     },
-    delta_error: {
-      NB: [-13333, -13333, -10000, -5000], NS: [-10000, -5000, 0], ZE: [-2500, 0, 2500],
-      PS: [0, 5000, 10000],                PB: [5000, 10000, 13333, 13333]
+    delta_error: { // Input ai [-2666.7 2666.7]
+      NB: [-4000, -2666.7, -1333.35], NS: [-2666.7, -1333.35, 0], ZE: [-1333.35, 0, 1333.35],
+      PS: [0, 1333.35, 2666.7],       PB: [1333.35, 2666.7, 4000]
+    },
+    output: { // Output u [-3200 3200] -> 9 Membership Function
+      O1: [-4000, -3200, -2400], O2: [-3200, -2400, -1600], O3: [-2400, -1600, -800],
+      O4: [-1600, -800, 0],      O5: [-800, 0, 800],        O6: [0, 800, 1600],
+      O7: [800, 1600, 2400],     O8: [1600, 2400, 3200],    O9: [2400, 3200, 4000]
     }
   },
   sugeno: {
-    error: {
-      NB: [-200, -200, -150, -75], NS: [-150, -75, 0], ZE: [-50, 0, 50],
-      PS: [0, 75, 150],            PB: [75, 150, 200, 200]
+    error: { // Input ae [-200 200]
+      NB: [-300, -200, -100], NS: [-200, -100, 0], ZE: [-100, 0, 100],
+      PS: [0, 100, 200],      PB: [100, 200, 300]
     },
-    delta_error: {   // identik dengan Mamdani (dikonfirmasi dari kedua file .fis)
-      NB: [-13333, -13333, -10000, -5000], NS: [-10000, -5000, 0], ZE: [-2500, 0, 2500],
-      PS: [0, 5000, 10000],                PB: [5000, 10000, 13333, 13333]
+    delta_error: { // Input ai [-2666.7 2666.7]
+      NB: [-4000, -2666.7, -1333.35], NS: [-2666.7, -1333.35, 0], ZE: [-1333.35, 0, 1333.35],
+      PS: [0, 1333.35, 2666.7],       PB: [1333.35, 2666.7, 4000]
+    },
+    output: { // Output u (Singleton) -> 9 Nilai Konstanta
+      O1: -3200, O2: -2400, O3: -1600, O4: -800, O5: 0,
+      O6: 800, O7: 1600, O8: 2400, O9: 3200
     }
   }
 };
@@ -240,35 +247,48 @@ function makeMFChart(canvasId, fuzzyType, inputName) {
   if (!ctx) return null;
 
   const isDeltaError = inputName === 'delta_error';
-  const domainMin = isDeltaError ? -13333 : -200;
-  const domainMax = isDeltaError ?  13333 :  200;
-  const step = isDeltaError ? 100 : 2;   // resolusi diperhalus supaya puncak tajam
+  const isOutput     = inputName === 'output';
+  
+  // Atur domain skala
+  let domainMin = -200, domainMax = 200, step = 2; // Error
+  if (isDeltaError) { domainMin = -2666.7; domainMax = 2666.7; step = 26.6; }
+  else if (isOutput) { domainMin = -3200; domainMax = 3200; step = 32; }
 
   const labels = [];
   for (let x = domainMin; x <= domainMax; x += step) labels.push(x);
 
   const p = MF_PARAMS[fuzzyType][inputName];
-  const dNB = labels.map(x => evalMF(x, p.NB));
-  const dNS = labels.map(x => evalMF(x, p.NS));
-  const dZE = labels.map(x => evalMF(x, p.ZE));
-  const dPS = labels.map(x => evalMF(x, p.PS));
-  const dPB = labels.map(x => evalMF(x, p.PB));
+  let datasetsConfig = [];
+
+  if (isOutput) {
+    // Render 9 Kurva untuk Output u (Mamdani)
+    const colors = ['#3b82f6', '#ef4444', '#f59e0b', '#8b5cf6', '#10b981', '#06b6d4', '#dc2626', '#2563eb', '#ea580c'];
+    const keys = ['O1', 'O2', 'O3', 'O4', 'O5', 'O6', 'O7', 'O8', 'O9'];
+    keys.forEach((k, i) => {
+      datasetsConfig.push({
+        label: (i + 1).toString(),
+        data: labels.map(x => evalMF(x, p[k])),
+        borderColor: colors[i],
+        backgroundColor: colors[i] + '25', // Tambah transparansi hex
+        fill: true, tension: 0, pointRadius: 0, borderWidth: 1.5
+      });
+    });
+  } else {
+    // Render 5 Kurva untuk Input (ae & ai)
+    datasetsConfig = [
+      { label: 'NB', data: labels.map(x => evalMF(x, p.NB)), borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.15)', fill: true, tension: 0, pointRadius: 0, borderWidth: 2 },
+      { label: 'NS', data: labels.map(x => evalMF(x, p.NS)), borderColor: '#f97316', backgroundColor: 'rgba(249,115,22,0.15)', fill: true, tension: 0, pointRadius: 0, borderWidth: 2 },
+      { label: 'ZE', data: labels.map(x => evalMF(x, p.ZE)), borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.15)', fill: true, tension: 0, pointRadius: 0, borderWidth: 2 },
+      { label: 'PS', data: labels.map(x => evalMF(x, p.PS)), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.15)', fill: true, tension: 0, pointRadius: 0, borderWidth: 2 },
+      { label: 'PB', data: labels.map(x => evalMF(x, p.PB)), borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.15)', fill: true, tension: 0, pointRadius: 0, borderWidth: 2 }
+    ];
+  }
 
   return new Chart(ctx, {
     type: 'line',
-    data: {
-      labels: labels,
-      datasets: [
-        { label: 'NB', data: dNB, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.15)',  fill: true, tension: 0, pointRadius: 0, borderWidth: 2 },
-        { label: 'NS', data: dNS, borderColor: '#f97316', backgroundColor: 'rgba(249,115,22,0.15)', fill: true, tension: 0, pointRadius: 0, borderWidth: 2 },
-        { label: 'ZE', data: dZE, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.15)', fill: true, tension: 0, pointRadius: 0, borderWidth: 2 },
-        { label: 'PS', data: dPS, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.15)', fill: true, tension: 0, pointRadius: 0, borderWidth: 2 },
-        { label: 'PB', data: dPB, borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.15)', fill: true, tension: 0, pointRadius: 0, borderWidth: 2 }
-      ]
-    },
+    data: { labels: labels, datasets: datasetsConfig },
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
+      responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false }, tooltip: { enabled: true } },
       scales: {
         x: { ticks: { color: chartAxisColor(), font: { size: 10 } }, grid: { color: chartGridColorSubtle() } },
@@ -278,6 +298,46 @@ function makeMFChart(canvasId, fuzzyType, inputName) {
   });
 }
 
+// Fungsi untuk menggambar output Sugeno (Berbentuk Titik Singleton)
+function makeSugenoOutputChart(canvasId) {
+  const ctx = document.getElementById(canvasId);
+  if (!ctx) return null;
+
+  const p = MF_PARAMS.sugeno.output;
+  const points = [
+    { label: '1 (-3200)', data: [{ x: p.O1, y: 0.1 }, { x: p.O1, y: 0.9 }], color: '#3b82f6' },
+    { label: '2 (-2400)', data: [{ x: p.O2, y: 0.2 }, { x: p.O2, y: 0.8 }], color: '#ef4444' },
+    { label: '3 (-1600)', data: [{ x: p.O3, y: 0.3 }, { x: p.O3, y: 0.7 }], color: '#f59e0b' },
+    { label: '4 (-800)',  data: [{ x: p.O4, y: 0.4 }, { x: p.O4, y: 0.6 }], color: '#8b5cf6' },
+    { label: '5 (0)',     data: [{ x: p.O5, y: 0.5 }, { x: p.O5, y: 1.0 }], color: '#10b981' },
+    { label: '6 (800)',   data: [{ x: p.O6, y: 0.4 }, { x: p.O6, y: 0.6 }], color: '#06b6d4' },
+    { label: '7 (1600)',  data: [{ x: p.O7, y: 0.3 }, { x: p.O7, y: 0.7 }], color: '#dc2626' },
+    { label: '8 (2400)',  data: [{ x: p.O8, y: 0.2 }, { x: p.O8, y: 0.8 }], color: '#2563eb' },
+    { label: '9 (3200)',  data: [{ x: p.O9, y: 0.1 }, { x: p.O9, y: 0.9 }], color: '#ea580c' }
+  ];
+
+  return new Chart(ctx, {
+    type: 'scatter',
+    data: {
+      datasets: points.map(pt => ({
+        label: pt.label, data: pt.data,
+        borderColor: pt.color, backgroundColor: pt.color,
+        pointStyle: 'circle', pointRadius: 5, pointHoverRadius: 8
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, position: 'top', labels: { color: chartAxisColor(), font: { size: 10 } } },
+        tooltip: { callbacks: { label: (c) => `${c.dataset.label}` } }
+      },
+      scales: {
+        x: { min: -3500, max: 3500, ticks: { color: chartAxisColor(), font: { size: 10 } }, grid: { color: chartGridColorSubtle() }, title: { display: true, text: 'Output Variable "u"', color: chartAxisColor() } },
+        y: { min: 0, max: 1.1, ticks: { display: false }, grid: { display: false } }
+      }
+    }
+  });
+}
 
 const fuzzyChartOptions = {
   responsive: true,
@@ -397,6 +457,7 @@ function initFuzzyMamdani() {
     options: fuzzyChartOptions
   });
   mfMChart = makeMFChart('mfMamdani', 'mamdani', 'error'); 
+  let mfMOutChart = makeMFChart('mfMamdaniOut', 'mamdani', 'output');
 }
 
 function initFuzzySugeno() {
@@ -414,6 +475,7 @@ function initFuzzySugeno() {
     options: fuzzyChartOptions
   });
   mfSChart = makeMFChart('mfSugeno',  'sugeno',  'error');
+  let mfSOutChart = makeSugenoOutputChart('mfSugenoOut');
 }
 
 function initCompareCharts() {
@@ -1014,31 +1076,28 @@ function openOTAPortal() {
 }
 
 // ==========================================
-// RENDER RULE BASE TABLE (25 aturan, sesuai ESP32 .ino)
-// Nilai konstan Sugeno: -255, -127, 0, 127, 255
-// Nilai Mamdani sama persis karena berbagi rule base
+// RENDER RULE BASE TABLE (25 aturan, dipetakan ke 9 Output: O1 - O9)
 // ==========================================
 function renderRuleBase() {
-  // Matriks output (baris = Error: NB..PB, kolom = DeltaError: NB..PB)
   const rules = [
-    [-255, -255, -127, -127,    0],  // Error NB
-    [-255, -127, -127,    0,  127],  // Error NS
-    [-127, -127,    0,  127,  127],  // Error ZE
-    [-127,    0,  127,  127,  255],  // Error PS
-    [   0,  127,  127,  255,  255]   // Error PB
+    [-3200, -2400, -1600,  -800,     0], // ae = NB
+    [-2400, -1600,  -800,     0,   800], // ae = NS
+    [-1600,  -800,     0,   800,  1600], // ae = ZE
+    [ -800,     0,   800,  1600,  2400], // ae = PS
+    [    0,   800,  1600,  2400,  3200]  // ae = PB
   ];
   const headers = ['NB', 'NS', 'ZE', 'PS', 'PB'];
 
   const getBadgeClass = (val) => {
-    if (val === -255) return 'rp-vr';
-    if (val === -127) return 'rp-r';
-    if (val ===    0) return 'rp-s';
-    if (val ===  127) return 'rp-t';
-    if (val ===  255) return 'rp-vt';
+    if (val <= -2400) return 'rp-vr';  // Merah Gelap
+    if (val < 0 && val > -2400) return 'rp-r'; // Merah Terang
+    if (val === 0) return 'rp-s';      // Hijau (Netral)
+    if (val > 0 && val < 2400) return 'rp-t';  // Kuning
+    if (val >= 2400) return 'rsp-vt';   // Biru
     return '';
   };
 
-  let html = `<thead><tr><th>E \\ dE</th>`;
+  let html = `<thead><tr><th>ae \\ ai</th>`;
   headers.forEach(de => html += `<th>${de}</th>`);
   html += `</tr></thead><tbody>`;
 
